@@ -23,11 +23,18 @@ async function request(path, options = {}) {
 
 // ── Scan ──────────────────────────────────────────────────────────────────────
 
-export const scanIOCs = (iocs) =>
-  request('/scan', {
+export const scanIOCs = (iocs, force = false) =>
+  request(`/scan${force ? '?force=true' : ''}`, {
     method: 'POST',
     body: JSON.stringify({ iocs }),
   })
+
+// Force a fresh scan of a single IOC, bypassing the cache
+export const rescan = (ioc) =>
+  request('/scan?force=true', {
+    method: 'POST',
+    body: JSON.stringify({ iocs: [ioc] }),
+  }).then((results) => results[0])
 
 export const scanText = (text) =>
   request('/scan/text', {

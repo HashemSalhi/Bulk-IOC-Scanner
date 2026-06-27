@@ -42,9 +42,20 @@ async def _init_db():
     yield
 
 
+class _NoLimit:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
 @pytest.fixture(autouse=True)
 def _mock_providers(monkeypatch):
     monkeypatch.setattr("app.services.scanner.get_providers", lambda: [FakeProvider()])
+    # Disable rate pacing so integration tests run fast (pacing is unit-tested separately)
+    from app.services.ratelimit import limiter
+    monkeypatch.setattr(limiter, "for_provider", lambda name: _NoLimit())
 
 
 @pytest_asyncio.fixture

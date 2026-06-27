@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { rescan } from '../api/client'
 import CopyReportButton, { buildReport } from './CopyReportButton'
 import RiskBadge from './RiskBadge'
 import TagSelector from './TagSelector'
@@ -108,14 +109,29 @@ function ProviderPanel({ pr }) {
   )
 }
 
-export default function ResultDetailModal({ result, onClose, onTagged }) {
+export default function ResultDetailModal({ result, onClose, onTagged, onRescanned }) {
   const [localTag, setLocalTag] = useState(result?.tag || null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState(null)
 
   if (!result) return null
 
   function handleTagged(tag) {
     setLocalTag(tag)
     onTagged?.(result.id, tag)
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    setRefreshError(null)
+    try {
+      const updated = await rescan(result.ioc)
+      onRescanned?.(result, updated)
+    } catch (e) {
+      setRefreshError(e.message)
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   const report = buildReport({ ...result, tag: localTag })
@@ -135,7 +151,17 @@ export default function ResultDetailModal({ result, onClose, onTagged }) {
             <div className="text-xs text-slate-500 uppercase tracking-widest">IOC Detail</div>
             <div className="text-cyan-400 font-mono text-sm truncate max-w-xs mt-0.5">{result.ioc}</div>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-200 text-xl leading-none">✕</button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Re-scan now (bypass cache)"
+              className="text-xs font-mono px-2 py-1 border border-[#1e2d4a] rounded text-slate-400 hover:text-cyan-400 hover:border-cyan-700 transition-all disabled:opacity-50"
+            >
+              {refreshing ? '⟳ …' : '⟳ Refresh'}
+            </button>
+            <button onClick={onClose} className="text-slate-500 hover:text-slate-200 text-xl leading-none">✕</button>
+          </div>
         </div>
 
         {/* Body */}
@@ -152,7 +178,13 @@ export default function ResultDetailModal({ result, onClose, onTagged }) {
                   Detection: {result.detection_ratio}
                 </span>
               )}
+              {result.from_cache && (
+                <span className="text-[10px] font-mono text-cyan-500 bg-cyan-950/40 border border-cyan-800 px-2 py-0.5 rounded" title="Reused from a recent scan">
+                  cached
+                </span>
+              )}
             </div>
+            {refreshError && <p className="text-red-400 text-xs font-mono">✕ {refreshError}</p>}
             {result.source_filename && (
               <div className="text-xs font-mono text-slate-500">
                 📄 {result.source_filename}

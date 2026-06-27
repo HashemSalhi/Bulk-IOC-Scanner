@@ -29,18 +29,19 @@ logger = logging.getLogger(__name__)
 @router.post("", response_model=list[ScanResult])
 async def scan_iocs(
     body: ScanRequest,
+    force: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
     """Scan a list of IOC strings (hashes, IPs, domains, URLs)."""
     validated = validate_ioc_list(body.iocs)
-    logger.info("Scan request: %d IOCs", len(validated))
+    logger.info("Scan request: %d IOCs (force=%s)", len(validated), force)
 
-    results = await scan_bulk(validated)
+    results = await scan_bulk(validated, db=db, force=force)
 
-    # Persist each result
+    # Persist fresh results; cached ones already have an id
     for result in results:
-        scan_id = await save_scan(db, result)
-        result.id = scan_id
+        if not result.from_cache:
+            result.id = await save_scan(db, result)
 
     return results
 
@@ -48,6 +49,7 @@ async def scan_iocs(
 @router.post("/text", response_model=list[ScanResult])
 async def scan_text(
     body: TextScanRequest,
+    force: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
     """Accept raw pasted text; split on newline/comma then scan."""
@@ -55,9 +57,10 @@ async def scan_text(
         raise HTTPException(status_code=422, detail="No text provided")
     iocs = parse_bulk_input(body.text)
     validated = validate_ioc_list(iocs)
-    results = await scan_bulk(validated)
+    results = await scan_bulk(validated, db=db, force=force)
     for result in results:
-        result.id = await save_scan(db, result)
+        if not result.from_cache:
+            result.id = await save_scan(db, result)
     return results
 
 
@@ -80,8 +83,9 @@ async def scan_files(
 
         # Only the SHA256 goes out to providers
         source_files = {hashes.sha256: (hashes.filename, hashes.size)}
-        scan_results = await scan_bulk([hashes.sha256], source_files=source_files)
+        scan_results = await scan_bulk([hashes.sha256], source_files=source_files, db=db)
         result = scan_results[0]
+        # Always record the upload in history (even on a cache hit) with this filename
         result.id = await save_scan(db, result)
 
         file_results.append(

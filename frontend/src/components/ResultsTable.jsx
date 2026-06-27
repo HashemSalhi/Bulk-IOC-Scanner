@@ -36,7 +36,7 @@ function exportCSV(rows) {
   a.click()
 }
 
-export default function ResultsTable({ results, onTagUpdated }) {
+export default function ResultsTable({ results, onTagUpdated, onResultReplaced }) {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [riskFilter, setRiskFilter] = useState('all')
@@ -82,6 +82,11 @@ export default function ResultsTable({ results, onTagUpdated }) {
     onTagUpdated?.(id, tag)
     // update selected in-place
     if (selected?.id === id) setSelected(prev => ({ ...prev, tag }))
+  }
+
+  function handleRescanned(old, updated) {
+    setSelected(updated)
+    onResultReplaced?.(old, updated)
   }
 
   if (!results.length) return null
@@ -181,9 +186,11 @@ export default function ResultsTable({ results, onTagUpdated }) {
 
       {selected && (
         <ResultDetailModal
+          key={selected.id}
           result={selected}
           onClose={() => setSelected(null)}
           onTagged={handleTagUpdated}
+          onRescanned={handleRescanned}
         />
       )}
     </>

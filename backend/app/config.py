@@ -16,6 +16,16 @@ class Settings(BaseSettings):
     max_upload_mb: int = 32
     max_iocs_per_scan: int = 200
 
+    # Caching — reuse a stored result if the same IOC was scanned within this window
+    cache_ttl_hours: int = 24
+
+    # Per-provider rate pacing (requests per minute); tuned to free-tier limits
+    vt_rate_per_min: int = 4
+    abuseipdb_rate_per_min: int = 30
+    greynoise_rate_per_min: int = 30
+    threatfox_rate_per_min: int = 60
+    urlscan_rate_per_min: int = 60
+
     # CORS
     frontend_origin: str = "http://localhost:5173"
 

@@ -50,6 +50,20 @@ async def test_scan_text_endpoint(client):
     assert len(r.json()) == 3
 
 
+async def test_cache_reuses_recent_scan(client):
+    first = (await client.post("/api/scan", json={"iocs": ["9.9.9.9"]})).json()[0]
+    assert first["from_cache"] is False
+    second = (await client.post("/api/scan", json={"iocs": ["9.9.9.9"]})).json()[0]
+    assert second["from_cache"] is True
+    assert second["id"] == first["id"]  # same stored row, not re-persisted
+
+
+async def test_force_bypasses_cache(client):
+    await client.post("/api/scan", json={"iocs": ["9.9.4.4"]})
+    forced = (await client.post("/api/scan?force=true", json={"iocs": ["9.9.4.4"]})).json()[0]
+    assert forced["from_cache"] is False
+
+
 async def test_timestamps_are_utc_iso(client):
     data = (await client.post("/api/scan", json={"iocs": ["8.8.4.4"]})).json()
     assert data[0]["created_at"].endswith("Z")

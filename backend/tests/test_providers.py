@@ -82,9 +82,18 @@ async def test_vt_invalid_key():
     assert "invalid API key" in res.error
 
 
-async def test_vt_rate_limit():
+async def test_vt_rate_limit_retries_then_errors(monkeypatch):
+    calls = {"n": 0}
+
     def handler(request):
+        calls["n"] += 1
         return httpx.Response(429)
+
+    # Don't actually wait for the Retry-After backoff
+    import app.providers.virustotal as vt
+    async def _instant(_):
+        return None
+    monkeypatch.setattr(vt.asyncio, "sleep", _instant)
 
     provider = VirusTotalProvider("fake-key")
     async with make_client(handler) as client:
@@ -92,6 +101,7 @@ async def test_vt_rate_limit():
 
     assert not res.success
     assert "rate limit" in res.error.lower()
+    assert calls["n"] == 2  # initial attempt + one retry
 
 
 # ── AbuseIPDB ─────────────────────────────────────────────────────────────────

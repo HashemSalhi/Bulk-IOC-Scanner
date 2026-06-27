@@ -35,6 +35,12 @@ export default function HistoryPage() {
     if (selected?.id === id) setSelected(prev => ({ ...prev, tag }))
   }
 
+  function handleRescanned(old, updated) {
+    // A forced re-scan creates a new history row; prepend it and show it
+    setHistory(prev => [updated, ...prev])
+    setSelected(updated)
+  }
+
   if (loading) return <div className="p-6 text-slate-500 font-mono text-sm">Loading history…</div>
   if (error) return <div className="p-6 text-red-400 font-mono text-sm">✕ {error}</div>
 
@@ -92,9 +98,11 @@ export default function HistoryPage() {
 
       {selected && !loadingDetail && (
         <ResultDetailModal
+          key={selected.id}
           result={selected}
           onClose={() => setSelected(null)}
           onTagged={handleTagUpdated}
+          onRescanned={handleRescanned}
         />
       )}
     </div>

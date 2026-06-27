@@ -1,4 +1,5 @@
 """VirusTotal API v3 provider."""
+import asyncio
 import base64
 import logging
 from datetime import datetime, timezone
@@ -7,6 +8,7 @@ import httpx
 
 from app.models.schemas import ProviderResult
 from app.providers.base import HASH_TYPES, Provider
+from app.services.ratelimit import retry_after_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -24,24 +26,30 @@ class VirusTotalProvider(Provider):
 
     async def lookup(self, client: httpx.AsyncClient, ioc: str, ioc_type: str) -> ProviderResult:
         headers = {"x-apikey": self._api_key}
-        try:
-            if ioc_type in HASH_TYPES:
-                return await self._lookup_hash(client, headers, ioc, ioc_type)
-            elif ioc_type == "ip":
-                return await self._lookup_ip(client, headers, ioc)
-            elif ioc_type == "domain":
-                return await self._lookup_domain(client, headers, ioc)
-            elif ioc_type == "url":
-                return await self._lookup_url(client, headers, ioc)
-            else:
-                return self._error(ioc, ioc_type, f"Unsupported IOC type: {ioc_type}")
-        except httpx.TimeoutException:
-            return self._error(ioc, ioc_type, "Request timed out")
-        except httpx.HTTPStatusError as e:
-            return self._http_error(ioc, ioc_type, e)
-        except Exception as e:
-            logger.exception("VirusTotal unexpected error for %s", ioc)
-            return self._error(ioc, ioc_type, str(e))
+        for attempt in range(2):  # one retry on 429
+            try:
+                return await self._dispatch(client, headers, ioc, ioc_type)
+            except httpx.TimeoutException:
+                return self._error(ioc, ioc_type, "Request timed out")
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt == 0:
+                    await asyncio.sleep(retry_after_seconds(e.response))
+                    continue
+                return self._http_error(ioc, ioc_type, e)
+            except Exception as e:
+                logger.exception("VirusTotal unexpected error for %s", ioc)
+                return self._error(ioc, ioc_type, str(e))
+
+    async def _dispatch(self, client, headers, ioc, ioc_type):
+        if ioc_type in HASH_TYPES:
+            return await self._lookup_hash(client, headers, ioc, ioc_type)
+        elif ioc_type == "ip":
+            return await self._lookup_ip(client, headers, ioc)
+        elif ioc_type == "domain":
+            return await self._lookup_domain(client, headers, ioc)
+        elif ioc_type == "url":
+            return await self._lookup_url(client, headers, ioc)
+        return self._error(ioc, ioc_type, f"Unsupported IOC type: {ioc_type}")
 
     # ── Hash lookup ───────────────────────────────────────────────────────────
 

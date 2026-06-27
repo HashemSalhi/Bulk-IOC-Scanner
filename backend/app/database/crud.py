@@ -58,6 +58,31 @@ async def list_scans(db: AsyncSession, limit: int = 500) -> list[Scan]:
     return list(result.scalars().all())
 
 
+async def get_recent_scan(
+    db: AsyncSession, ioc: str, ioc_type: str, max_age_hours: int
+) -> Scan | None:
+    """
+    Return the newest successful scan for this IOC within the cache window,
+    with provider responses eagerly loaded. Returns None on a miss.
+    """
+    from datetime import timedelta
+
+    cutoff = _utcnow() - timedelta(hours=max_age_hours)
+    result = await db.execute(
+        select(Scan)
+        .options(selectinload(Scan.provider_responses))
+        .where(
+            Scan.ioc == ioc,
+            Scan.ioc_type == ioc_type,
+            Scan.status == "completed",
+            Scan.created_at >= cutoff,
+        )
+        .order_by(desc(Scan.created_at))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_scan(db: AsyncSession, scan_id: int) -> Scan | None:
     result = await db.execute(
         select(Scan)

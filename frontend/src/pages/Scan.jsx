@@ -53,6 +53,10 @@ export default function ScanPage() {
     setResults(prev => prev.map(r => r.id === id ? { ...r, tag } : r))
   }
 
+  function handleResultReplaced(old, updated) {
+    setResults(prev => prev.map(r => r.id === old.id ? updated : r))
+  }
+
   const canScan = mode === 'text' ? input.trim().length > 0 : selectedFiles.length > 0
 
   return (
@@ -155,7 +159,7 @@ export default function ScanPage() {
               </span>
             </div>
           </div>
-          <ResultsTable results={results} onTagUpdated={handleTagUpdated} />
+          <ResultsTable results={results} onTagUpdated={handleTagUpdated} onResultReplaced={handleResultReplaced} />
         </div>
       )}
     </div>
