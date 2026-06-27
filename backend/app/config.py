@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     urlscan_api_key: str = ""
 
     # Limits
-    max_upload_mb: int = 32
+    max_upload_mb: int = 1024  # 1 GB
     max_iocs_per_scan: int = 200
 
     # Caching — reuse a stored result if the same IOC was scanned within this window
