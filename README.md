@@ -18,18 +18,30 @@ A lightweight, polished web tool for SOC analysts to bulk-scan Indicators of Com
 
 ---
 
-## Quick Start (Local)
-
-### 1. Clone and configure
+## Quick Start — One Command
 
 ```bash
 git clone <repo-url>
 cd IOC-Radar
-cp .env.example backend/.env
-# Edit backend/.env with your API keys
+./run.sh
 ```
 
-### 2. Backend
+`run.sh` bootstraps the Python virtualenv + backend deps and the frontend `node_modules`
+on first run, then starts **both** servers together with live reload:
+
+- Frontend → http://localhost:5173
+- Backend  → http://localhost:8000  (API docs at `/docs`)
+
+Press **Ctrl+C** to stop both. No API key is required to start — add keys later from the
+**Settings** page in the UI.
+
+> Requirements: `python3`, `npm`, and `bash`.
+
+---
+
+## Manual Start (alternative)
+
+### Backend
 
 ```bash
 cd backend
@@ -37,11 +49,10 @@ python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
-# API available at http://localhost:8000
-# Interactive docs: http://localhost:8000/docs
+# API available at http://localhost:8000  (docs at /docs)
 ```
 
-### 3. Frontend
+### Frontend
 
 ```bash
 cd frontend
