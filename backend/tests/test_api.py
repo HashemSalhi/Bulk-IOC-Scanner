@@ -136,6 +136,25 @@ async def test_file_scan_hashes_locally(client):
     # The scanned IOC is the SHA256, and original filename is preserved
     assert data["scan_result"]["ioc"] == data["file_info"]["sha256"]
     assert data["scan_result"]["source_filename"] == "test.txt"
+    assert data["error"] is None
+
+
+async def test_file_scan_isolates_oversize_file(client, monkeypatch):
+    # Force a tiny upload cap so one file is rejected but the other still scans
+    from app.config import settings
+    monkeypatch.setattr(settings, "max_upload_mb", 0)  # 0 MB => any non-empty file too big
+
+    files = [
+        ("files", ("ok.txt", io.BytesIO(b""), "text/plain")),          # empty -> fits
+        ("files", ("big.bin", io.BytesIO(b"X" * 5000), "application/octet-stream")),
+    ]
+    r = await client.post("/api/scan/files", files=files)
+    assert r.status_code == 200
+    data = {d["filename"]: d for d in r.json()}
+    assert data["big.bin"]["error"] is not None
+    assert data["big.bin"]["scan_result"] is None
+    assert data["ok.txt"]["error"] is None
+    assert data["ok.txt"]["scan_result"] is not None
 
 
 async def test_settings_lists_all_providers(client):

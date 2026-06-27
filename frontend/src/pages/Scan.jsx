@@ -36,13 +36,25 @@ export default function ScanPage() {
         }
         setProgress({ total: selectedFiles.length, completed: 0, current: selectedFiles[0]?.name })
         const data = await scanFiles(selectedFiles)
-        // data is FileScanResult[] — flatten to ScanResult with file info merged
-        const flat = data.map(d => ({
-          ...d.scan_result,
-          source_filename: d.file_info.filename,
-          file_size: d.file_info.size,
-          _hashes: { md5: d.file_info.md5, sha1: d.file_info.sha1, sha256: d.file_info.sha256 },
-        }))
+        // data is FileScanResult[] — flatten to ScanResult rows (errored files become error rows)
+        const flat = data.map(d => {
+          if (d.error || !d.scan_result) {
+            return {
+              ioc: d.filename,
+              ioc_type: 'file',
+              risk_band: null,
+              status: 'error',
+              source_filename: d.filename,
+              provider_results: [{ provider: 'system', success: false, error: d.error }],
+            }
+          }
+          return {
+            ...d.scan_result,
+            source_filename: d.file_info.filename,
+            file_size: d.file_info.size,
+            _hashes: { md5: d.file_info.md5, sha1: d.file_info.sha1, sha256: d.file_info.sha256 },
+          }
+        })
         setResults(flat)
         setProgress({ total: selectedFiles.length, completed: selectedFiles.length, current: null })
       }

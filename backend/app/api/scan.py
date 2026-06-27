@@ -96,10 +96,17 @@ async def scan_files(
     file_results: list[FileScanResult] = []
 
     for upload in files:
+        filename = upload.filename or "unknown"
+        # Isolate failures so one bad file doesn't abort the whole batch
         try:
             hashes = await hash_upload(upload, settings.max_upload_bytes)
-        except ValueError as e:
-            raise HTTPException(status_code=413, detail=str(e))
+        except ValueError as e:  # e.g. exceeds size limit
+            file_results.append(FileScanResult(filename=filename, error=str(e)))
+            continue
+        except Exception as e:
+            logger.exception("Failed to hash %s", filename)
+            file_results.append(FileScanResult(filename=filename, error=f"Could not process file: {e}"))
+            continue
 
         # Only the SHA256 goes out to providers
         source_files = {hashes.sha256: (hashes.filename, hashes.size)}
@@ -110,6 +117,7 @@ async def scan_files(
 
         file_results.append(
             FileScanResult(
+                filename=filename,
                 file_info=FileHashInfo(
                     filename=hashes.filename,
                     size=hashes.size,

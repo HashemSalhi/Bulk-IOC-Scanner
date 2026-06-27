@@ -122,5 +122,7 @@ class FileHashInfo(BaseModel):
 
 
 class FileScanResult(BaseModel):
-    file_info: FileHashInfo
-    scan_result: ScanResult
+    filename: str
+    file_info: FileHashInfo | None = None   # null when the file couldn't be processed
+    scan_result: ScanResult | None = None
+    error: str | None = None                # e.g. "exceeds the 32 MB limit"
