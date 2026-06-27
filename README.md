@@ -3,6 +3,8 @@
 A web tool for SOC analysts to bulk-scan Indicators of Compromise — file hashes, IP
 addresses, domains, and URLs — against threat intelligence providers (VirusTotal & AbuseIPDB).
 
+![Bulk-IOC-Scanner screenshot](docs/screenshot.png)
+
 ## Features
 
 - **Bulk scanning** — paste many IOCs at once (newline or comma separated)

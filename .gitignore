@@ -31,3 +31,6 @@ Thumbs.db
 
 # Temp uploads (should never persist but guard against it)
 backend/tmp_uploads/
+
+# Stray screenshots in repo root
+Screenshot*.png
