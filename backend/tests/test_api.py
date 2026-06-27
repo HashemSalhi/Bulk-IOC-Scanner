@@ -191,10 +191,15 @@ async def test_file_scan_isolates_oversize_file(client, monkeypatch):
 async def test_settings_lists_all_providers(client):
     r = await client.get("/api/settings")
     assert r.status_code == 200
-    ids = {p["id"] for p in r.json()["providers"]}
-    assert {"virustotal", "abuseipdb", "greynoise", "threatfox", "urlscan"} <= ids
-    # No keys configured => not active; toggle defaults on
-    assert all(p["active"] is False and p["key_configured"] is False for p in r.json()["providers"])
+    providers = {p["id"]: p for p in r.json()["providers"]}
+    assert {"virustotal", "abuseipdb", "greynoise", "threatfox", "urlscan", "rdap"} <= set(providers)
+    # Keyed providers: no key => not active
+    assert providers["virustotal"]["requires_key"] is True
+    assert providers["virustotal"]["active"] is False
+    # Keyless RDAP: ready and active out of the box, no key required
+    assert providers["rdap"]["requires_key"] is False
+    assert providers["rdap"]["key_configured"] is True
+    assert providers["rdap"]["active"] is True
 
 
 async def test_settings_key_update_by_id(client):

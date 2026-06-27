@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 # Shared httpx client timeout
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 
+# Recognized IOC types that no current provider can enrich
+_NON_ENRICHABLE = {"email", "cve", "asn", "crypto", "unknown"}
+
 
 async def _paced_lookup(provider, client, ioc, ioc_type) -> ProviderResult:
     """Run a provider lookup through its rate limiter."""
@@ -37,13 +40,17 @@ async def scan_ioc(
     applicable = [p for p in providers if p.supports(ioc_type)]
 
     if not applicable:
+        if ioc_type in _NON_ENRICHABLE:
+            msg = f"Recognized as '{ioc_type}', but no provider enriches this type yet."
+        else:
+            msg = f"No active provider supports type '{ioc_type}'. Enable one on the Settings page."
         pr = ProviderResult(
             provider="system",
             ioc=ioc,
             ioc_type=ioc_type,
             success=False,
-            error=f"No configured provider supports type '{ioc_type}'. Add an API key on the Settings page.",
-            raw={"error": "No provider available"},
+            error=msg,
+            raw={"error": msg},
         )
         return ScanResult(
             ioc=ioc,
@@ -142,7 +149,7 @@ async def scan_bulk(
 
     # Live pass for cache misses
     if to_scan:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
             tasks = []
             for i in to_scan:
                 ioc, ioc_type = typed_iocs[i]
@@ -181,7 +188,7 @@ async def scan_bulk_stream(
         misses.append((ioc, ioc_type))
 
     if misses:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
             tasks = [
                 asyncio.create_task(scan_ioc(client, providers, ioc, ioc_type))
                 for ioc, ioc_type in misses

@@ -106,9 +106,10 @@ class HistoryPage(BaseModel):
 class ProviderStatus(BaseModel):
     id: str                       # provider id, e.g. "virustotal"
     name: str                     # display name, e.g. "VirusTotal"
-    key_configured: bool          # a key is set (env or DB)
+    requires_key: bool            # False for keyless providers (e.g. RDAP)
+    key_configured: bool          # ready to run (keyless, or a key is set)
     enabled: bool                 # user on/off toggle
-    active: bool                  # key_configured AND enabled — actually runs
+    active: bool                  # ready AND enabled — actually runs
     key_hint: str | None = None   # masked, e.g. "be97...b8e1"
 
 

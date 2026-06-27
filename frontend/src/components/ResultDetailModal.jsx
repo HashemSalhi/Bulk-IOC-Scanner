@@ -10,6 +10,7 @@ const PROVIDER_NAMES = {
   greynoise: 'GreyNoise',
   threatfox: 'ThreatFox',
   urlscan: 'URLScan.io',
+  rdap: 'RDAP / WHOIS',
 }
 
 function Section({ title, children }) {
@@ -61,6 +62,10 @@ function ProviderPanel({ pr }) {
 
   const isVT = pr.provider === 'virustotal'
   const isAbuse = pr.provider === 'abuseipdb'
+  const isGrey = pr.provider === 'greynoise'
+  const isTF = pr.provider === 'threatfox'
+  const isURLScan = pr.provider === 'urlscan'
+  const isRDAP = pr.provider === 'rdap'
 
   return (
     <div className="bg-slate-900/50 border border-[#1e2d4a] rounded p-3 space-y-3">
@@ -111,6 +116,56 @@ function ProviderPanel({ pr }) {
           <KV label="TOR Node" value={r.is_tor ? 'YES ⚠' : null} />
           <KV label="Whitelisted" value={r.is_whitelisted ? 'Yes' : null} />
           <KV label="Last Reported" value={r.last_reported} />
+        </>
+      )}
+
+      {isGrey && (
+        <>
+          <KV label="Classification" value={r.classification} />
+          <KV label="Internet Noise" value={r.noise ? 'Yes' : null} />
+          <KV label="RIOT (known good)" value={r.riot ? 'Yes' : null} />
+          <KV label="Actor" value={r.name} />
+          <KV label="Last Seen" value={r.last_seen} />
+        </>
+      )}
+
+      {isTF && (
+        <>
+          <KV label="Matches" value={r.matches} />
+          <KV label="Threat Type" value={r.threat_type} />
+          <KV label="Malware" value={r.malware} />
+          <KV label="Tags" value={r.tags?.length ? r.tags.join(', ') : null} />
+          <KV label="First Seen" value={r.first_seen} />
+          <KV label="Confidence" value={r.threatfox_confidence != null ? `${r.threatfox_confidence}%` : null} />
+        </>
+      )}
+
+      {isURLScan && (
+        <>
+          <KV label="Total Scans" value={r.total_scans} />
+          <KV label="Malicious Scans" value={r.malicious_scans} />
+          <KV label="Latest Result" value={r.latest_result} />
+          <KV label="Latest Scan" value={r.latest_time} />
+        </>
+      )}
+
+      {isRDAP && (
+        <>
+          {r.found === false && <p className="text-xs font-mono text-slate-500">No RDAP record found.</p>}
+          {r.rdap_newly_registered && (
+            <p className="text-xs font-mono text-amber-400">⚠ Newly registered domain ({r.age_days}d old)</p>
+          )}
+          <KV label="Registrar" value={r.registrar} />
+          <KV label="Registered" value={r.registered} />
+          <KV label="Expires" value={r.expires} />
+          <KV label="Age (days)" value={r.age_days} />
+          <KV label="Nameservers" value={r.nameservers?.length ? r.nameservers.join(', ') : null} />
+          <KV label="Network" value={r.network_name} />
+          <KV label="Owner" value={r.owner} />
+          <KV label="Country" value={r.country} />
+          <KV label="CIDR" value={r.cidr} />
+          <KV label="Range" value={r.range} />
+          <KV label="Status" value={r.statuses?.length ? r.statuses.join(', ') : null} />
         </>
       )}
     </div>

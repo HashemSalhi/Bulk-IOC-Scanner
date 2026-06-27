@@ -9,9 +9,10 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ProviderInfo:
-    id: str         # must match Provider.name
-    display: str    # human-friendly name shown in the UI
-    env_attr: str   # attribute on Settings holding the API key
+    id: str                       # must match Provider.name
+    display: str                  # human-friendly name shown in the UI
+    env_attr: str | None          # Settings attribute holding the key (None if keyless)
+    requires_key: bool = True     # some providers (e.g. RDAP) need no API key
 
 
 PROVIDERS: list[ProviderInfo] = [
@@ -20,6 +21,7 @@ PROVIDERS: list[ProviderInfo] = [
     ProviderInfo("greynoise", "GreyNoise", "greynoise_api_key"),
     ProviderInfo("threatfox", "ThreatFox", "threatfox_auth_key"),
     ProviderInfo("urlscan", "URLScan.io", "urlscan_api_key"),
+    ProviderInfo("rdap", "RDAP / WHOIS", None, requires_key=False),
 ]
 
 PROVIDERS_BY_ID: dict[str, ProviderInfo] = {p.id: p for p in PROVIDERS}

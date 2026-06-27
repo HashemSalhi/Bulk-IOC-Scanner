@@ -13,7 +13,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.providers.catalog import PROVIDERS
+from app.providers.catalog import PROVIDERS, PROVIDERS_BY_ID
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,8 @@ class KeyStore:
 
     def _load_from_env(self) -> None:
         for info in PROVIDERS:
+            if not info.env_attr:
+                continue  # keyless provider (e.g. RDAP)
             value = getattr(settings, info.env_attr, "").strip()
             if value:
                 self._keys[info.id] = value
@@ -75,9 +77,17 @@ class KeyStore:
         """User on/off toggle (defaults to True)."""
         return self._enabled.get(provider, True)
 
+    def _requires_key(self, provider: str) -> bool:
+        info = PROVIDERS_BY_ID.get(provider)
+        return info.requires_key if info else True
+
+    def is_ready(self, provider: str) -> bool:
+        """True if the provider could run (keyless, or has a key)."""
+        return not self._requires_key(provider) or self.has_key(provider)
+
     def is_active(self, provider: str) -> bool:
-        """A provider runs only if it has a key AND is toggled on."""
-        return self.has_key(provider) and self.is_enabled(provider)
+        """A provider runs only if it's ready (keyless or keyed) AND toggled on."""
+        return self.is_ready(provider) and self.is_enabled(provider)
 
 
 keystore = KeyStore()

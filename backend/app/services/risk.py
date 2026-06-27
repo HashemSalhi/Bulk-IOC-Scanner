@@ -31,6 +31,10 @@ def compute_risk(provider_results: list[ProviderResult]) -> tuple[float, str]:
             abuse_score = float(pr.raw["abuse_confidence_score"])
             scores.append(abuse_score)
 
+        # RDAP: a newly-registered domain is a common phishing/malware signal
+        if (pr.raw or {}).get("rdap_newly_registered"):
+            scores.append(50.0)  # nudge into Medium for analyst attention
+
     if not scores:
         return 0.0, "Low"
 

@@ -161,13 +161,13 @@ export default function Settings() {
         </p>
 
         <form onSubmit={handleSave} className="space-y-4">
-          {cfg?.providers.map(p => (
+          {cfg?.providers.filter(p => p.requires_key).map(p => (
             <KeyInput
               key={p.id}
               label={`${p.name} API Key`}
               value={keyInputs[p.id] || ''}
               onChange={v => setKey(p.id, v)}
-              placeholder={p.enabled ? `Configured (${p.key_hint}) — enter to replace…` : `Enter ${p.name} API key…`}
+              placeholder={p.key_configured ? `Configured (${p.key_hint}) — enter to replace…` : `Enter ${p.name} API key…`}
             />
           ))}
 

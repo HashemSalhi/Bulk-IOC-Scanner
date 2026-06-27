@@ -261,3 +261,62 @@ def test_registry_respects_provider_toggle():
     assert not any(p.name == "virustotal" for p in get_providers())
 
     keystore._keys.clear(); keystore._enabled.clear()
+
+
+# ── RDAP / WHOIS (keyless) ────────────────────────────────────────────────────
+
+async def test_rdap_domain_newly_registered():
+    from datetime import datetime, timezone, timedelta
+    from app.providers.rdap import RDAPProvider
+
+    recent = (datetime.now(timezone.utc) - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def handler(request):
+        return httpx.Response(200, json={
+            "events": [{"eventAction": "registration", "eventDate": recent}],
+            "nameservers": [{"ldhName": "ns1.bad.com"}],
+            "status": ["active"],
+            "entities": [{"roles": ["registrar"], "vcardArray": ["vcard", [["fn", {}, "text", "EvilRegistrar"]]]}],
+        })
+
+    provider = RDAPProvider()
+    async with make_client(handler) as client:
+        res = await provider.lookup(client, "bad.com", "domain")
+    assert res.success
+    assert res.raw["registrar"] == "EvilRegistrar"
+    assert res.raw["rdap_newly_registered"] is True
+    assert res.suspicious == 1
+
+
+async def test_rdap_ip_network():
+    from app.providers.rdap import RDAPProvider
+
+    def handler(request):
+        return httpx.Response(200, json={
+            "name": "GOGL", "country": "US",
+            "startAddress": "8.8.8.0", "endAddress": "8.8.8.255",
+            "cidr0_cidrs": [{"v4prefix": "8.8.8.0", "length": 24}],
+        })
+
+    provider = RDAPProvider()
+    async with make_client(handler) as client:
+        res = await provider.lookup(client, "8.8.8.8", "ip")
+    assert res.success
+    assert res.raw["network_name"] == "GOGL"
+    assert res.raw["cidr"] == "8.8.8.0/24"
+
+
+async def test_rdap_404_no_record():
+    from app.providers.rdap import RDAPProvider
+    provider = RDAPProvider()
+    async with make_client(lambda r: httpx.Response(404)) as client:
+        res = await provider.lookup(client, "nope.invalid", "domain")
+    assert res.success
+    assert res.raw["found"] is False
+
+
+def test_rdap_supports():
+    from app.providers.rdap import RDAPProvider
+    p = RDAPProvider()
+    assert p.supports("domain") and p.supports("ip") and p.supports("cidr")
+    assert not p.supports("md5")

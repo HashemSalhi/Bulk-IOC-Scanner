@@ -29,10 +29,11 @@ def _build_provider_list() -> list[ProviderStatus]:
         ProviderStatus(
             id=info.id,
             name=info.display,
-            key_configured=keystore.has_key(info.id),
+            requires_key=info.requires_key,
+            key_configured=keystore.is_ready(info.id),  # keyless => always ready
             enabled=keystore.is_enabled(info.id),
             active=keystore.is_active(info.id),
-            key_hint=_mask_key(keystore.get(info.id)),
+            key_hint=_mask_key(keystore.get(info.id)) if info.requires_key else None,
         )
         for info in PROVIDERS
     ]
