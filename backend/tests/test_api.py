@@ -126,18 +126,27 @@ async def test_file_scan_hashes_locally(client):
     assert data["scan_result"]["source_filename"] == "test.txt"
 
 
-async def test_settings_and_key_update(client):
-    # Initially no real providers (env keys blank)
+async def test_settings_lists_all_providers(client):
     r = await client.get("/api/settings")
     assert r.status_code == 200
-    providers = {p["name"]: p for p in r.json()["providers"]}
-    assert providers["VirusTotal"]["enabled"] is False
+    ids = {p["id"] for p in r.json()["providers"]}
+    assert {"virustotal", "abuseipdb", "greynoise", "threatfox", "urlscan"} <= ids
+    assert all(p["enabled"] is False for p in r.json()["providers"])
 
-    # Save a key via the UI endpoint
-    r = await client.put("/api/settings/keys", json={"virustotal_api_key": "ABCD1234EFGH5678"})
+
+async def test_settings_key_update_by_id(client):
+    # Save keys via the UI endpoint, keyed by provider id
+    r = await client.put("/api/settings/keys", json={
+        "keys": {"virustotal": "ABCD1234EFGH5678", "greynoise": "GN12345678ABCD"},
+    })
     assert r.status_code == 200
-    providers = {p["name"]: p for p in r.json()["providers"]}
-    assert providers["VirusTotal"]["enabled"] is True
-    assert providers["VirusTotal"]["key_hint"] == "ABCD...5678"
-    # Full key is never returned
+    providers = {p["id"]: p for p in r.json()["providers"]}
+    assert providers["virustotal"]["enabled"] is True
+    assert providers["virustotal"]["key_hint"] == "ABCD...5678"
+    assert providers["greynoise"]["enabled"] is True
+    # Full keys are never returned
     assert "ABCD1234EFGH5678" not in r.text
+    # Clearing a key disables the provider
+    r = await client.put("/api/settings/keys", json={"keys": {"virustotal": ""}})
+    providers = {p["id"]: p for p in r.json()["providers"]}
+    assert providers["virustotal"]["enabled"] is False

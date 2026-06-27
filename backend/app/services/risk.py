@@ -35,7 +35,20 @@ def compute_risk(provider_results: list[ProviderResult]) -> tuple[float, str]:
         return 0.0, "Low"
 
     # Weight: highest score drives the final value (worst-case wins)
-    raw_score = round(max(scores), 1)
+    raw_score = max(scores)
+
+    # GreyNoise reducer: if it vouches the IP as benign/RIOT and nothing reported
+    # actual malicious detections, dial the score down (likely benign noise).
+    benign_signal = any(
+        (pr.raw or {}).get("greynoise_benign") for pr in provider_results if pr.success
+    )
+    malicious_present = any(
+        (pr.malicious or 0) > 0 for pr in provider_results if pr.success
+    )
+    if benign_signal and not malicious_present:
+        raw_score *= 0.5
+
+    raw_score = round(raw_score, 1)
 
     if raw_score <= 30:
         band = "Low"

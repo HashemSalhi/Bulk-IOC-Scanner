@@ -3,6 +3,9 @@ import httpx
 import pytest
 
 from app.providers.abuseipdb import AbuseIPDBProvider
+from app.providers.greynoise import GreyNoiseProvider
+from app.providers.threatfox import ThreatFoxProvider
+from app.providers.urlscan import URLScanProvider
 from app.providers.virustotal import VirusTotalProvider
 
 
@@ -141,3 +144,104 @@ async def test_abuseipdb_rejects_non_ip():
     async with make_client(lambda r: httpx.Response(200, json={})) as client:
         res = await provider.lookup(client, "example.com", "domain")
     assert not res.success
+
+
+# ── GreyNoise ─────────────────────────────────────────────────────────────────
+
+async def test_greynoise_malicious():
+    def handler(request):
+        assert request.headers.get("key") == "gn-key"
+        return httpx.Response(200, json={
+            "ip": "1.2.3.4", "noise": True, "riot": False,
+            "classification": "malicious", "name": "Scanner", "last_seen": "2024-01-01",
+        })
+
+    provider = GreyNoiseProvider("gn-key")
+    async with make_client(handler) as client:
+        res = await provider.lookup(client, "1.2.3.4", "ip")
+    assert res.success
+    assert res.malicious == 1
+    assert res.raw["greynoise_malicious"] is True
+
+
+async def test_greynoise_benign_riot():
+    def handler(request):
+        return httpx.Response(200, json={
+            "ip": "8.8.8.8", "noise": False, "riot": True, "classification": "benign",
+        })
+
+    provider = GreyNoiseProvider("gn-key")
+    async with make_client(handler) as client:
+        res = await provider.lookup(client, "8.8.8.8", "ip")
+    assert res.success
+    assert res.raw["greynoise_benign"] is True
+    assert res.harmless == 1
+
+
+async def test_greynoise_404_unobserved():
+    provider = GreyNoiseProvider("gn-key")
+    async with make_client(lambda r: httpx.Response(404, json={"message": "not observed"})) as client:
+        res = await provider.lookup(client, "10.0.0.1", "ip")
+    assert res.success
+    assert res.raw["classification"] == "unobserved"
+
+
+# ── ThreatFox ─────────────────────────────────────────────────────────────────
+
+async def test_threatfox_match():
+    def handler(request):
+        assert request.headers.get("Auth-Key") == "tf-key"
+        return httpx.Response(200, json={
+            "query_status": "ok",
+            "data": [{"confidence_level": 90, "threat_type": "botnet_cc",
+                      "malware_printable": "Emotet", "tags": ["emotet"]}],
+        })
+
+    provider = ThreatFoxProvider("tf-key")
+    async with make_client(handler) as client:
+        res = await provider.lookup(client, "1.2.3.4", "ip")
+    assert res.success
+    assert res.malicious == 1
+    assert res.raw["threatfox_confidence"] == 90
+    assert res.raw["malware"] == "Emotet"
+
+
+async def test_threatfox_no_result():
+    def handler(request):
+        return httpx.Response(200, json={"query_status": "no_result", "data": []})
+
+    provider = ThreatFoxProvider("tf-key")
+    async with make_client(handler) as client:
+        res = await provider.lookup(client, "8.8.8.8", "ip")
+    assert res.success
+    assert res.malicious in (0, None)
+    assert res.raw["matches"] == 0
+
+
+# ── URLScan ───────────────────────────────────────────────────────────────────
+
+async def test_urlscan_search_with_malicious_verdict():
+    def handler(request):
+        return httpx.Response(200, json={
+            "total": 2,
+            "results": [
+                {"verdicts": {"malicious": True}, "result": "https://urlscan.io/r/1",
+                 "task": {"time": "2024-01-01"}},
+                {"verdicts": {"malicious": False}},
+            ],
+        })
+
+    provider = URLScanProvider("us-key")
+    async with make_client(handler) as client:
+        res = await provider.lookup(client, "evil.com", "domain")
+    assert res.success
+    assert res.raw["total_scans"] == 2
+    assert res.raw["malicious_scans"] == 1
+    assert res.malicious == 1
+
+
+def test_urlscan_supports():
+    provider = URLScanProvider("us-key")
+    assert provider.supports("url")
+    assert provider.supports("domain")
+    assert not provider.supports("ip")

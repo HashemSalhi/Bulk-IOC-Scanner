@@ -13,12 +13,9 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.providers.catalog import PROVIDERS
 
 logger = logging.getLogger(__name__)
-
-# Provider name constants — must match what registry.py / settings endpoint use
-VT = "virustotal"
-ABUSE = "abuseipdb"
 
 
 class KeyStore:
@@ -28,10 +25,10 @@ class KeyStore:
         self._load_from_env()
 
     def _load_from_env(self) -> None:
-        if settings.virustotal_api_key.strip():
-            self._keys[VT] = settings.virustotal_api_key.strip()
-        if settings.abuseipdb_api_key.strip():
-            self._keys[ABUSE] = settings.abuseipdb_api_key.strip()
+        for info in PROVIDERS:
+            value = getattr(settings, info.env_attr, "").strip()
+            if value:
+                self._keys[info.id] = value
 
     async def load_from_db(self, db: AsyncSession) -> None:
         """Called once during app startup; DB values override env values."""

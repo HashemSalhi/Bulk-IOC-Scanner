@@ -56,6 +56,9 @@ def _mock_providers(monkeypatch):
     # Disable rate pacing so integration tests run fast (pacing is unit-tested separately)
     from app.services.ratelimit import limiter
     monkeypatch.setattr(limiter, "for_provider", lambda name: _NoLimit())
+    # Reset the keystore singleton so saved keys don't leak across tests
+    from app.services.keystore import keystore
+    keystore._keys.clear()
 
 
 @pytest_asyncio.fixture

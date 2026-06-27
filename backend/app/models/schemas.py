@@ -94,9 +94,10 @@ class ScanDetail(ScanHistoryItem):
 # ── Settings response ─────────────────────────────────────────────────────────
 
 class ProviderStatus(BaseModel):
-    name: str
+    id: str                       # provider id, e.g. "virustotal"
+    name: str                     # display name, e.g. "VirusTotal"
     enabled: bool
-    key_hint: str | None = None   # e.g. "VT...XXXX" masked
+    key_hint: str | None = None   # masked, e.g. "be97...b8e1"
 
 
 class SettingsResponse(BaseModel):
@@ -106,8 +107,8 @@ class SettingsResponse(BaseModel):
 
 
 class ApiKeyUpdate(BaseModel):
-    virustotal_api_key: str | None = None   # None = leave unchanged; "" = clear
-    abuseipdb_api_key: str | None = None
+    # {provider_id: key}; empty string clears, omitted leaves unchanged
+    keys: dict[str, str] = {}
 
 
 # ── File scan response ────────────────────────────────────────────────────────

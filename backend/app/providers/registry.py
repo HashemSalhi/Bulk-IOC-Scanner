@@ -1,26 +1,36 @@
 """Provider registry — instantiate enabled providers from the key store.
 
 To add a new provider:
-  1. Create backend/app/providers/yourprovider.py implementing Provider ABC.
-  2. Import it here and instantiate it inside get_providers() if its key is present.
+  1. Create backend/app/providers/yourprovider.py implementing the Provider ABC.
+  2. Add a ProviderInfo entry to providers/catalog.py and a key field to config.py.
+  3. Add its (id -> factory) mapping to _FACTORIES below.
 """
 from app.providers.base import Provider
 
 
+def _factories() -> dict:
+    from app.providers.abuseipdb import AbuseIPDBProvider
+    from app.providers.greynoise import GreyNoiseProvider
+    from app.providers.threatfox import ThreatFoxProvider
+    from app.providers.urlscan import URLScanProvider
+    from app.providers.virustotal import VirusTotalProvider
+
+    return {
+        "virustotal": VirusTotalProvider,
+        "abuseipdb": AbuseIPDBProvider,
+        "greynoise": GreyNoiseProvider,
+        "threatfox": ThreatFoxProvider,
+        "urlscan": URLScanProvider,
+    }
+
+
 def get_providers() -> list[Provider]:
     """Return a list of enabled provider instances based on currently active keys."""
-    from app.providers.virustotal import VirusTotalProvider
-    from app.providers.abuseipdb import AbuseIPDBProvider
-    from app.services.keystore import keystore, VT, ABUSE
+    from app.services.keystore import keystore
 
     providers: list[Provider] = []
-
-    vt_key = keystore.get(VT)
-    if vt_key:
-        providers.append(VirusTotalProvider(vt_key))
-
-    abuse_key = keystore.get(ABUSE)
-    if abuse_key:
-        providers.append(AbuseIPDBProvider(abuse_key))
-
+    for provider_id, factory in _factories().items():
+        key = keystore.get(provider_id)
+        if key:
+            providers.append(factory(key))
     return providers

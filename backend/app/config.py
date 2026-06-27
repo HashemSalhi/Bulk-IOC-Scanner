@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     # API Keys
     virustotal_api_key: str = ""
     abuseipdb_api_key: str = ""
+    greynoise_api_key: str = ""
+    threatfox_auth_key: str = ""
+    urlscan_api_key: str = ""
 
     # Limits
     max_upload_mb: int = 32
@@ -35,14 +38,6 @@ class Settings(BaseSettings):
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
-
-    @property
-    def virustotal_enabled(self) -> bool:
-        return bool(self.virustotal_api_key.strip())
-
-    @property
-    def abuseipdb_enabled(self) -> bool:
-        return bool(self.abuseipdb_api_key.strip())
 
 
 settings = Settings()

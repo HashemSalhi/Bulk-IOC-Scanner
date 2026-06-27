@@ -80,8 +80,9 @@ export const getScanDetail = (id) => request(`/history/${id}`)
 
 export const getSettings = () => request('/settings')
 
+// keys: { providerId: keyValue } — empty string clears, omitted leaves unchanged
 export const updateApiKeys = (keys) =>
   request('/settings/keys', {
     method: 'PUT',
-    body: JSON.stringify(keys),
+    body: JSON.stringify({ keys }),
   })

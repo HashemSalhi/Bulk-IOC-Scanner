@@ -54,9 +54,8 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState(null)
 
-  // Key form state
-  const [vtKey, setVtKey] = useState('')
-  const [abuseKey, setAbuseKey] = useState('')
+  // Key form state: { providerId: typedValue }
+  const [keyInputs, setKeyInputs] = useState({})
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState(null)   // { type: 'ok'|'error', text }
 
@@ -67,15 +66,20 @@ export default function Settings() {
       .finally(() => setLoading(false))
   }, [])
 
+  function setKey(id, value) {
+    setKeyInputs(prev => ({ ...prev, [id]: value }))
+  }
+
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
     setSaveMsg(null)
 
-    // Only send fields that were filled in; leave empty = no change
+    // Only send fields that were typed into; leave blank = no change
     const payload = {}
-    if (vtKey !== '')    payload.virustotal_api_key = vtKey
-    if (abuseKey !== '') payload.abuseipdb_api_key  = abuseKey
+    for (const [id, value] of Object.entries(keyInputs)) {
+      if (value !== '' && value != null) payload[id] = value
+    }
 
     if (!Object.keys(payload).length) {
       setSaveMsg({ type: 'error', text: 'Enter at least one key to save.' })
@@ -86,8 +90,7 @@ export default function Settings() {
     try {
       const updated = await updateApiKeys(payload)
       setCfg(prev => ({ ...prev, providers: updated.providers }))
-      setVtKey('')
-      setAbuseKey('')
+      setKeyInputs({})
       setSaveMsg({ type: 'ok', text: 'API keys saved — providers active immediately.' })
     } catch (e) {
       setSaveMsg({ type: 'error', text: e.message })
@@ -122,18 +125,15 @@ export default function Settings() {
         </p>
 
         <form onSubmit={handleSave} className="space-y-4">
-          <KeyInput
-            label="VirusTotal API Key"
-            value={vtKey}
-            onChange={setVtKey}
-            placeholder="Enter VirusTotal v3 API key…"
-          />
-          <KeyInput
-            label="AbuseIPDB API Key"
-            value={abuseKey}
-            onChange={setAbuseKey}
-            placeholder="Enter AbuseIPDB v2 API key…"
-          />
+          {cfg?.providers.map(p => (
+            <KeyInput
+              key={p.id}
+              label={`${p.name} API Key`}
+              value={keyInputs[p.id] || ''}
+              onChange={v => setKey(p.id, v)}
+              placeholder={p.enabled ? `Configured (${p.key_hint}) — enter to replace…` : `Enter ${p.name} API key…`}
+            />
+          ))}
 
           <div className="flex items-center gap-4 pt-1">
             <button
