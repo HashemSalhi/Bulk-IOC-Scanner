@@ -247,6 +247,53 @@ def test_urlscan_supports():
     assert not provider.supports("ip")
 
 
+# ── IPify Geolocation ─────────────────────────────────────────────────────────
+
+async def test_ipify_geolocates_ip():
+    from app.providers.ipify import IPifyProvider
+
+    def handler(request):
+        assert request.url.params.get("apiKey") == "ip-key"
+        assert request.url.params.get("ipAddress") == "8.8.8.8"
+        return httpx.Response(200, json={
+            "ip": "8.8.8.8",
+            "isp": "Google LLC",
+            "location": {
+                "country": "US", "region": "California", "city": "Mountain View",
+                "lat": 37.40, "lng": -122.07, "postalCode": "94043", "timezone": "-07:00",
+            },
+            "as": {"asn": 15169, "name": "GOOGLE", "route": "8.8.8.0/24", "domain": "google.com"},
+        })
+
+    provider = IPifyProvider("ip-key")
+    async with make_client(handler) as client:
+        res = await provider.lookup(client, "8.8.8.8", "ip")
+    assert res.success
+    assert res.raw["country"] == "US"
+    assert res.raw["city"] == "Mountain View"
+    assert res.raw["asn"] == 15169
+    assert res.raw["isp"] == "Google LLC"
+
+
+async def test_ipify_invalid_key():
+    from app.providers.ipify import IPifyProvider
+
+    provider = IPifyProvider("bad-key")
+    async with make_client(lambda r: httpx.Response(403, json={"messages": "no access"})) as client:
+        res = await provider.lookup(client, "8.8.8.8", "ip")
+    assert not res.success
+    assert "invalid API key" in res.error
+
+
+def test_ipify_only_supports_ip():
+    from app.providers.ipify import IPifyProvider
+
+    provider = IPifyProvider("ip-key")
+    assert provider.supports("ip")
+    assert not provider.supports("domain")
+    assert not provider.supports("md5")
+
+
 # ── Registry honors the on/off toggle ─────────────────────────────────────────
 
 def test_registry_respects_provider_toggle():

@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     greynoise_api_key: str = ""
     threatfox_auth_key: str = ""
     urlscan_api_key: str = ""
+    ipify_api_key: str = ""
 
     # Limits
     max_upload_mb: int = 1024  # 1 GB
@@ -28,6 +29,7 @@ class Settings(BaseSettings):
     greynoise_rate_per_min: int = 30
     threatfox_rate_per_min: int = 60
     urlscan_rate_per_min: int = 60
+    ipify_rate_per_min: int = 60
 
     # CORS
     frontend_origin: str = "http://localhost:5173"

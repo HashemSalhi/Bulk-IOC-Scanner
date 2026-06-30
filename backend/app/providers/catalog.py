@@ -21,6 +21,7 @@ PROVIDERS: list[ProviderInfo] = [
     ProviderInfo("greynoise", "GreyNoise", "greynoise_api_key"),
     ProviderInfo("threatfox", "ThreatFox", "threatfox_auth_key"),
     ProviderInfo("urlscan", "URLScan.io", "urlscan_api_key"),
+    ProviderInfo("ipify", "IPify Geolocation", "ipify_api_key"),
     ProviderInfo("rdap", "RDAP / WHOIS", None, requires_key=False),
 ]
 

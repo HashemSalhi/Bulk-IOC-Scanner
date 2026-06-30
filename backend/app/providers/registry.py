@@ -11,6 +11,7 @@ from app.providers.base import Provider
 def _factories() -> dict:
     from app.providers.abuseipdb import AbuseIPDBProvider
     from app.providers.greynoise import GreyNoiseProvider
+    from app.providers.ipify import IPifyProvider
     from app.providers.rdap import RDAPProvider
     from app.providers.threatfox import ThreatFoxProvider
     from app.providers.urlscan import URLScanProvider
@@ -22,6 +23,7 @@ def _factories() -> dict:
         "greynoise": GreyNoiseProvider,
         "threatfox": ThreatFoxProvider,
         "urlscan": URLScanProvider,
+        "ipify": IPifyProvider,
         "rdap": RDAPProvider,
     }
 

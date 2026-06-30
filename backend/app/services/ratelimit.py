@@ -28,6 +28,7 @@ _RATES = {
     "greynoise": settings.greynoise_rate_per_min,
     "threatfox": settings.threatfox_rate_per_min,
     "urlscan": settings.urlscan_rate_per_min,
+    "ipify": settings.ipify_rate_per_min,
     "rdap": 60,  # rdap.org is generous; keep a sane default
 }
 

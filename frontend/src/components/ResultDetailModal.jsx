@@ -10,6 +10,7 @@ const PROVIDER_NAMES = {
   greynoise: 'GreyNoise',
   threatfox: 'ThreatFox',
   urlscan: 'URLScan.io',
+  ipify: 'IPify Geolocation',
   rdap: 'RDAP / WHOIS',
 }
 
@@ -65,6 +66,7 @@ function ProviderPanel({ pr }) {
   const isGrey = pr.provider === 'greynoise'
   const isTF = pr.provider === 'threatfox'
   const isURLScan = pr.provider === 'urlscan'
+  const isIPify = pr.provider === 'ipify'
   const isRDAP = pr.provider === 'rdap'
 
   return (
@@ -146,6 +148,22 @@ function ProviderPanel({ pr }) {
           <KV label="Malicious Scans" value={r.malicious_scans} />
           <KV label="Latest Result" value={r.latest_result} />
           <KV label="Latest Scan" value={r.latest_time} />
+        </>
+      )}
+
+      {isIPify && (
+        <>
+          {r.found === false && <p className="text-xs font-mono text-slate-500">No geolocation data found.</p>}
+          <KV label="City" value={r.city} />
+          <KV label="Region" value={r.region} />
+          <KV label="Country" value={r.country} />
+          <KV label="Postal Code" value={r.postal_code} />
+          <KV label="Coordinates" value={r.lat != null && r.lng != null ? `${r.lat}, ${r.lng}` : null} />
+          <KV label="Timezone" value={r.timezone} />
+          <KV label="ISP" value={r.isp} />
+          <KV label="ASN" value={r.asn} />
+          <KV label="AS Name" value={r.as_name} />
+          <KV label="AS Route" value={r.as_route} />
         </>
       )}
 
