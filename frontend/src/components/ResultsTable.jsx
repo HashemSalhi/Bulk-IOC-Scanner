@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { maybeDefang } from '../utils/defang'
 import RiskBadge from './RiskBadge'
 import ResultDetailModal from './ResultDetailModal'
@@ -14,6 +14,38 @@ const COLUMNS = [
 
 const RISK_ORDER = { High: 0, Medium: 1, Low: 2 }
 
+// Pull the first non-empty value for any of `keys` from the result's provider raws.
+function fromProviders(r, keys) {
+  for (const pr of r.provider_results || []) {
+    const raw = pr.raw || {}
+    for (const k of keys) {
+      if (raw[k] != null && raw[k] !== '') return raw[k]
+    }
+  }
+  return ''
+}
+
+// Exportable fields. `get(r, defangOn)` returns the cell value; enrichment
+// fields read from provider results (IPify / AbuseIPDB / VirusTotal / RDAP).
+const EXPORT_FIELDS = [
+  { key: 'ioc',             label: 'IOC',           default: true,  get: (r, d) => maybeDefang(r.ioc, d) },
+  { key: 'ioc_type',        label: 'Type',          default: true,  get: r => r.ioc_type || '' },
+  { key: 'risk_band',       label: 'Risk Band',     default: true,  get: r => r.risk_band || '' },
+  { key: 'risk_score',      label: 'Risk Score',    default: true,  get: r => r.risk_score ?? '' },
+  { key: 'detection_ratio', label: 'Detection',     default: true,  get: r => r.detection_ratio || '' },
+  { key: 'status',          label: 'Status',        default: true,  get: r => r.status || '' },
+  { key: 'tag',             label: 'Tag',           default: false, get: r => r.tag || '' },
+  { key: 'source_filename', label: 'Source File',   default: false, get: r => r.source_filename || '' },
+  { key: 'created_at',      label: 'Scanned At',    default: false, get: r => (r.created_at ? new Date(r.created_at).toISOString() : '') },
+  { key: 'country',         label: 'Country',       default: false, get: r => fromProviders(r, ['country', 'country_code']) },
+  { key: 'city',            label: 'City',          default: false, get: r => fromProviders(r, ['city']) },
+  { key: 'isp',             label: 'ISP / Owner',   default: false, get: r => fromProviders(r, ['isp', 'as_owner', 'owner']) },
+  { key: 'asn',             label: 'ASN',           default: false, get: r => fromProviders(r, ['asn']) },
+  { key: 'registrar',       label: 'Registrar',     default: false, get: r => fromProviders(r, ['registrar']) },
+]
+
+const DEFAULT_FIELDS = EXPORT_FIELDS.filter(f => f.default).map(f => f.key)
+
 function download(content, ext, mime) {
   const blob = new Blob([content], { type: mime })
   const a = document.createElement('a')
@@ -22,40 +54,31 @@ function download(content, ext, mime) {
   a.click()
 }
 
-function exportCSV(rows, defangOn) {
-  const headers = ['IOC', 'Type', 'Risk Band', 'Risk Score', 'Detection Ratio', 'Status', 'Tag', 'Source File', 'Scanned At']
+function csvCell(value) {
+  const s = String(value ?? '')
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+function selectedFields(fieldKeys) {
+  return EXPORT_FIELDS.filter(f => fieldKeys.includes(f.key))
+}
+
+function exportCSV(rows, defangOn, fieldKeys) {
+  const fields = selectedFields(fieldKeys)
   const lines = [
-    headers.join(','),
-    ...rows.map(r => [
-      `"${maybeDefang(r.ioc, defangOn)}"`,
-      r.ioc_type,
-      r.risk_band || '',
-      r.risk_score ?? '',
-      r.detection_ratio || '',
-      r.status,
-      r.tag || '',
-      r.source_filename || '',
-      r.created_at ? new Date(r.created_at).toISOString() : '',
-    ].join(','))
+    fields.map(f => csvCell(f.label)).join(','),
+    ...rows.map(r => fields.map(f => csvCell(f.get(r, defangOn))).join(',')),
   ]
   download(lines.join('\n'), 'csv', 'text/csv')
 }
 
-function exportJSON(rows, defangOn) {
-  const data = rows.map(r => ({
-    ioc: maybeDefang(r.ioc, defangOn),
-    type: r.ioc_type,
-    risk_band: r.risk_band,
-    risk_score: r.risk_score,
-    detection_ratio: r.detection_ratio,
-    status: r.status,
-    tag: r.tag,
-    source_filename: r.source_filename,
-    scanned_at: r.created_at,
-    providers: (r.provider_results || []).map(p => ({
-      provider: p.provider, success: p.success, error: p.error, raw: p.raw,
-    })),
-  }))
+function exportJSON(rows, defangOn, fieldKeys) {
+  const fields = selectedFields(fieldKeys)
+  const data = rows.map(r => {
+    const obj = {}
+    for (const f of fields) obj[f.key] = f.get(r, defangOn)
+    return obj
+  })
   download(JSON.stringify(data, null, 2), 'json', 'application/json')
 }
 
@@ -67,6 +90,24 @@ export default function ResultsTable({ results, onTagUpdated, onResultReplaced }
   const [sortDir, setSortDir] = useState('asc')
   const [defangOn, setDefangOn] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [exportFields, setExportFields] = useState(DEFAULT_FIELDS)
+  const [fieldsOpen, setFieldsOpen] = useState(false)
+  const fieldsRef = useRef(null)
+
+  useEffect(() => {
+    if (!fieldsOpen) return
+    function onClick(e) {
+      if (fieldsRef.current && !fieldsRef.current.contains(e.target)) setFieldsOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [fieldsOpen])
+
+  function toggleField(key) {
+    setExportFields(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    )
+  }
 
   const types = useMemo(() => {
     const s = new Set(results.map(r => r.ioc_type).filter(Boolean))
@@ -155,15 +196,53 @@ export default function ResultsTable({ results, onTagUpdated, onResultReplaced }
             />
             Defang
           </label>
+          <div className="relative" ref={fieldsRef}>
+            <button
+              onClick={() => setFieldsOpen(o => !o)}
+              title="Choose which fields to include in exports"
+              className="px-3 py-1.5 border border-[#1e2d4a] text-slate-400 hover:text-cyan-400 hover:border-cyan-700 rounded transition-all"
+            >
+              ⚙ Fields ({exportFields.length}) ▾
+            </button>
+            {fieldsOpen && (
+              <div className="absolute right-0 mt-1 z-20 w-52 bg-[#0f172a] border border-[#1e2d4a] rounded-lg shadow-xl p-2 max-h-72 overflow-y-auto">
+                <div className="flex justify-between px-1 pb-1 mb-1 border-b border-[#1e2d4a] text-[10px] uppercase tracking-widest text-slate-500">
+                  <span>Export fields</span>
+                  <button
+                    onClick={() => setExportFields(DEFAULT_FIELDS)}
+                    className="text-cyan-600 hover:text-cyan-400 normal-case tracking-normal"
+                  >
+                    reset
+                  </button>
+                </div>
+                {EXPORT_FIELDS.map(f => (
+                  <label
+                    key={f.key}
+                    className="flex items-center gap-2 px-1 py-1 rounded hover:bg-cyan-950/20 cursor-pointer select-none text-slate-300"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={exportFields.includes(f.key)}
+                      onChange={() => toggleField(f.key)}
+                      className="accent-cyan-600"
+                    />
+                    {f.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
           <button
-            onClick={() => exportCSV(filtered, defangOn)}
-            className="px-3 py-1.5 border border-[#1e2d4a] text-slate-400 hover:text-cyan-400 hover:border-cyan-700 rounded transition-all"
+            onClick={() => exportCSV(filtered, defangOn, exportFields)}
+            disabled={!exportFields.length}
+            className="px-3 py-1.5 border border-[#1e2d4a] text-slate-400 hover:text-cyan-400 hover:border-cyan-700 rounded transition-all disabled:opacity-40 disabled:hover:text-slate-400 disabled:hover:border-[#1e2d4a]"
           >
             ⬇ CSV
           </button>
           <button
-            onClick={() => exportJSON(filtered, defangOn)}
-            className="px-3 py-1.5 border border-[#1e2d4a] text-slate-400 hover:text-cyan-400 hover:border-cyan-700 rounded transition-all"
+            onClick={() => exportJSON(filtered, defangOn, exportFields)}
+            disabled={!exportFields.length}
+            className="px-3 py-1.5 border border-[#1e2d4a] text-slate-400 hover:text-cyan-400 hover:border-cyan-700 rounded transition-all disabled:opacity-40 disabled:hover:text-slate-400 disabled:hover:border-[#1e2d4a]"
           >
             ⬇ JSON
           </button>
