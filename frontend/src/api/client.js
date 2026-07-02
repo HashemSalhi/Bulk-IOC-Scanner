@@ -116,6 +116,16 @@ export const getHistory = ({ limit = 50, offset = 0, q = '', tag = '' } = {}) =>
   return request(`/history?${params.toString()}`)
 }
 
+// Clear history. With no args clears everything; pass { q, tag } to clear only
+// the scans matching the current filters. Returns { status, deleted }.
+export const clearHistory = ({ q = '', tag = '' } = {}) => {
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (tag) params.set('tag', tag)
+  const qs = params.toString()
+  return request(`/history${qs ? `?${qs}` : ''}`, { method: 'DELETE' })
+}
+
 export const getHistoryStats = () => request('/history/stats')
 
 export const getScanDetail = (id) => request(`/history/${id}`)

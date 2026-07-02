@@ -1,6 +1,6 @@
 import json
 
-from sqlalchemy import desc, select
+from sqlalchemy import delete, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -78,6 +78,22 @@ async def count_scans(db: AsyncSession, q: str | None = None, tag: str | None = 
     stmt = select(func.count()).select_from(_history_query(q, tag).subquery())
     result = await db.execute(stmt)
     return int(result.scalar_one())
+
+
+async def clear_scans(db: AsyncSession, q: str | None = None, tag: str | None = None) -> int:
+    """Delete scans (optionally filtered by IOC substring / tag) and their
+    provider responses. Returns the number of scans deleted.
+
+    A bulk DELETE bypasses the ORM relationship cascade, so child rows in
+    provider_responses are removed explicitly first via a matching subquery.
+    """
+    ids_subq = _history_query(q, tag).with_only_columns(Scan.id).subquery()
+    await db.execute(
+        delete(ProviderResponse).where(ProviderResponse.scan_id.in_(select(ids_subq)))
+    )
+    result = await db.execute(delete(Scan).where(Scan.id.in_(select(ids_subq))))
+    await db.commit()
+    return int(result.rowcount or 0)
 
 
 async def update_scan_notes(db: AsyncSession, scan_id: int, notes: str | None) -> bool:

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getScanDetail, getHistory } from '../api/client'
+import { clearHistory, getScanDetail, getHistory } from '../api/client'
 import RiskBadge from '../components/RiskBadge'
 import ResultDetailModal from '../components/ResultDetailModal'
 
@@ -18,6 +18,12 @@ export default function HistoryPage() {
   const [search, setSearch] = useState('')
   const [tag, setTag] = useState('')
   const [page, setPage] = useState(0)
+
+  // Clear-history confirmation
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [clearing, setClearing] = useState(false)
+
+  const filtered = Boolean(search || tag)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -59,6 +65,20 @@ export default function HistoryPage() {
     setSelected(updated)
   }
 
+  async function handleClear() {
+    setClearing(true)
+    try {
+      await clearHistory(filtered ? { q: search, tag } : {})
+      setConfirmClear(false)
+      setPage(0)
+      load()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setClearing(false)
+    }
+  }
+
   if (error) return <div className="p-6 text-red-400 font-mono text-sm">✕ {error}</div>
 
   return (
@@ -84,6 +104,40 @@ export default function HistoryPage() {
           {TAGS.map(t => <option key={t} value={t}>{t === '' ? 'All tags' : t}</option>)}
         </select>
         {loading && <span className="text-xs font-mono text-slate-600">loading…</span>}
+
+        {/* Clear history */}
+        <div className="ml-auto flex items-center gap-2">
+          {confirmClear ? (
+            <>
+              <span className="text-xs font-mono text-amber-400">
+                {filtered ? `Delete ${total} matching scan${total === 1 ? '' : 's'}?` : `Delete all ${total} scans?`}
+              </span>
+              <button
+                onClick={handleClear}
+                disabled={clearing}
+                className="px-3 py-1.5 text-xs font-mono border border-red-800 bg-red-950/40 text-red-300 rounded hover:bg-red-900/50 disabled:opacity-50 transition-all"
+              >
+                {clearing ? 'Clearing…' : 'Confirm delete'}
+              </button>
+              <button
+                onClick={() => setConfirmClear(false)}
+                disabled={clearing}
+                className="px-3 py-1.5 text-xs font-mono border border-[#1e2d4a] text-slate-400 rounded hover:text-slate-200 hover:border-slate-600 transition-all"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setConfirmClear(true)}
+              disabled={total === 0}
+              title={filtered ? 'Delete the scans matching the current filters' : 'Delete all scan history'}
+              className="px-3 py-1.5 text-xs font-mono border border-[#1e2d4a] text-slate-400 rounded hover:text-red-400 hover:border-red-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              🗑 {filtered ? 'Clear matching' : 'Clear history'}
+            </button>
+          )}
+        </div>
       </div>
 
       {history.length === 0 ? (

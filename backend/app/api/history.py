@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.crud import (
+    clear_scans,
     count_scans,
     get_scan,
     get_stats,
@@ -30,6 +31,18 @@ async def get_history(
         items=[ScanHistoryItem.model_validate(s) for s in scans],
         total=total,
     )
+
+
+@router.delete("", response_model=dict)
+async def clear_history(
+    q: str | None = Query(None, description="Only clear scans whose IOC matches"),
+    tag: str | None = Query(None, description="Only clear scans with this tag"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete scan history. With no filters, clears everything; with q/tag,
+    clears only the matching scans."""
+    deleted = await clear_scans(db, q=q, tag=tag)
+    return {"status": "ok", "deleted": deleted}
 
 
 @router.get("/stats", response_model=dict)

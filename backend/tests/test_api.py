@@ -106,6 +106,46 @@ async def test_history_pagination_and_filters(client):
     assert found["total"] == 1
 
 
+async def test_clear_all_history(client):
+    for ip in ["11.0.0.1", "11.0.0.2", "11.0.0.3"]:
+        await client.post("/api/scan", json={"iocs": [ip]})
+    assert (await client.get("/api/history")).json()["total"] >= 3
+
+    r = await client.delete("/api/history")
+    assert r.status_code == 200
+    assert r.json()["deleted"] >= 3
+
+    body = (await client.get("/api/history")).json()
+    assert body["total"] == 0
+    assert body["items"] == []
+
+
+async def test_clear_history_with_filter_keeps_others(client):
+    await client.post("/api/scan", json={"iocs": ["12.0.0.9"]})
+    await client.post("/api/scan", json={"iocs": ["13.0.0.9"]})
+
+    # Only clear the scan matching the substring
+    r = await client.delete("/api/history?q=12.0.0.9")
+    assert r.status_code == 200
+    assert r.json()["deleted"] == 1
+
+    remaining = [h["ioc"] for h in (await client.get("/api/history")).json()["items"]]
+    assert "12.0.0.9" not in remaining
+    assert "13.0.0.9" in remaining
+
+
+async def test_clear_history_by_tag(client):
+    scan = (await client.post("/api/scan", json={"iocs": ["14.0.0.9"]})).json()[0]
+    await client.patch(f"/api/scan/{scan['id']}/tag", json={"tag": "Malware"})
+    await client.post("/api/scan", json={"iocs": ["15.0.0.9"]})
+
+    r = await client.delete("/api/history?tag=Malware")
+    assert r.json()["deleted"] == 1
+    remaining = [h["ioc"] for h in (await client.get("/api/history")).json()["items"]]
+    assert "14.0.0.9" not in remaining
+    assert "15.0.0.9" in remaining
+
+
 async def test_history_tag_filter(client):
     scan = (await client.post("/api/scan", json={"iocs": ["172.16.9.9"]})).json()[0]
     await client.patch(f"/api/scan/{scan['id']}/tag", json={"tag": "Phishing"})
