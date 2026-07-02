@@ -240,5 +240,12 @@ async def scan_bulk_stream(
                     yield res
             await producer
         finally:
-            if not producer.done():
-                producer.cancel()
+            # If the client disconnected mid-stream, the generator is closed and
+            # we land here with the producer still running. Cancel it AND await
+            # it so its CancelledError is retrieved — otherwise asyncio logs
+            # "_GatheringFuture exception was never retrieved".
+            producer.cancel()
+            try:
+                await producer
+            except (asyncio.CancelledError, Exception):
+                pass
