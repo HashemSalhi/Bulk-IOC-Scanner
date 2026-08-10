@@ -31,10 +31,6 @@ backend/bulk_ioc_scanner/web/
 # PyInstaller
 *.spec
 
-# Local tooling config
-CLAUDE.md
-.claude/
-
 # OS
 .DS_Store
 Thumbs.db
