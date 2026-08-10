@@ -5,7 +5,7 @@ import io
 import pytest
 from starlette.datastructures import Headers, UploadFile
 
-from app.services.hashing import hash_upload
+from bulk_ioc_scanner.services.hashing import hash_upload
 
 
 def make_upload(content: bytes, filename: str = "sample.bin") -> UploadFile:

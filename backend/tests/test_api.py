@@ -212,7 +212,7 @@ async def test_file_scan_hashes_locally(client):
 
 async def test_file_scan_isolates_oversize_file(client, monkeypatch):
     # Force a tiny upload cap so one file is rejected but the other still scans
-    from app.config import settings
+    from bulk_ioc_scanner.config import settings
     monkeypatch.setattr(settings, "max_upload_mb", 0)  # 0 MB => any non-empty file too big
 
     files = [

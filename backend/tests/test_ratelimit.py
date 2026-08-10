@@ -3,7 +3,7 @@ import time
 
 import httpx
 
-from app.services.ratelimit import RateLimiter, _ProviderLimiter, retry_after_seconds
+from bulk_ioc_scanner.services.ratelimit import RateLimiter, _ProviderLimiter, retry_after_seconds
 
 
 async def test_limiter_spaces_calls():

@@ -1,9 +1,9 @@
 """Tests for the provider batch (lookup_batch) mechanism and per-IOC fallback."""
 import httpx
 
-from app.models.schemas import ProviderResult
-from app.providers.base import Provider
-from app.services.scanner import _gather_provider_results
+from bulk_ioc_scanner.models.schemas import ProviderResult
+from bulk_ioc_scanner.providers.base import Provider
+from bulk_ioc_scanner.services.scanner import _gather_provider_results
 
 
 class CountingProvider(Provider):
@@ -37,7 +37,7 @@ def _noop_client():
 
 async def test_batch_capable_provider_makes_one_call(monkeypatch):
     # Disable pacing so the test is instant
-    from app.services import scanner
+    from bulk_ioc_scanner.services import scanner
     class _NoLimit:
         async def __aenter__(self): return self
         async def __aexit__(self, *e): return False
@@ -55,7 +55,7 @@ async def test_batch_capable_provider_makes_one_call(monkeypatch):
 
 
 async def test_non_batch_provider_falls_back_to_per_ioc(monkeypatch):
-    from app.services import scanner
+    from bulk_ioc_scanner.services import scanner
     class _NoLimit:
         async def __aenter__(self): return self
         async def __aexit__(self, *e): return False
@@ -72,7 +72,7 @@ async def test_non_batch_provider_falls_back_to_per_ioc(monkeypatch):
 
 
 async def test_provider_only_gets_supported_iocs(monkeypatch):
-    from app.services import scanner
+    from bulk_ioc_scanner.services import scanner
     class _NoLimit:
         async def __aenter__(self): return self
         async def __aexit__(self, *e): return False
@@ -91,7 +91,7 @@ async def test_provider_only_gets_supported_iocs(monkeypatch):
 
 async def test_misaligned_batch_result_is_repaired(monkeypatch):
     """A buggy batch override returning too few results must not lose IOCs."""
-    from app.services import scanner
+    from bulk_ioc_scanner.services import scanner
     class _NoLimit:
         async def __aenter__(self): return self
         async def __aexit__(self, *e): return False

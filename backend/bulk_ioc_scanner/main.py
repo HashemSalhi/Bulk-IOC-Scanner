@@ -4,10 +4,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import history, scan, settings
-from app.config import settings as cfg
-from app.database.db import AsyncSessionLocal, init_db
-from app.utils.logging import configure_logging
+from bulk_ioc_scanner.api import history, scan, settings
+from bulk_ioc_scanner.config import settings as cfg
+from bulk_ioc_scanner.database.db import AsyncSessionLocal, init_db
+from bulk_ioc_scanner.utils.logging import configure_logging
 
 configure_logging()
 
@@ -17,10 +17,10 @@ async def lifespan(app: FastAPI):
     await init_db()
     # Load any keys previously saved via the web UI into the in-memory store
     async with AsyncSessionLocal() as db:
-        from app.services.keystore import keystore
+        from bulk_ioc_scanner.services.keystore import keystore
         await keystore.load_from_db(db)
     yield
-    from app.database.db import engine
+    from bulk_ioc_scanner.database.db import engine
     await engine.dispose()
 
 

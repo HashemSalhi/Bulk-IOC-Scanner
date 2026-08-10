@@ -5,13 +5,13 @@ import logging
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
-from app.models.schemas import ProviderResult, ScanResult
-from app.models.tables import _utcnow
-from app.providers.registry import get_providers
-from app.services.ioc_detect import detect, refang
-from app.services.ratelimit import limiter
-from app.services.risk import compute_risk
+from bulk_ioc_scanner.config import settings
+from bulk_ioc_scanner.models.schemas import ProviderResult, ScanResult
+from bulk_ioc_scanner.models.tables import _utcnow
+from bulk_ioc_scanner.providers.registry import get_providers
+from bulk_ioc_scanner.services.ioc_detect import detect, refang
+from bulk_ioc_scanner.services.ratelimit import limiter
+from bulk_ioc_scanner.services.risk import compute_risk
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ async def _gather_provider_results(
 
 def _scan_from_cached(scan, source_filename, file_size) -> ScanResult:
     """Build a ScanResult from a cached DB row (no provider call)."""
-    from app.database.crud import hydrate_provider_results
+    from bulk_ioc_scanner.database.crud import hydrate_provider_results
 
     return ScanResult(
         id=scan.id,
@@ -137,7 +137,7 @@ async def scan_bulk(
     Cached results carry from_cache=True and a populated id; callers should not
     re-persist them.
     """
-    from app.database.crud import get_recent_scan
+    from bulk_ioc_scanner.database.crud import get_recent_scan
 
     providers = get_providers()
 
@@ -183,7 +183,7 @@ async def scan_bulk_stream(
     first, then live results as they complete). Persists fresh results inline and
     sets their id before yielding. Used by the NDJSON streaming endpoint.
     """
-    from app.database.crud import get_recent_scan, save_scan
+    from bulk_ioc_scanner.database.crud import get_recent_scan, save_scan
 
     providers = get_providers()
     typed_iocs = [(ioc := refang(i), detect(ioc)) for i in iocs]

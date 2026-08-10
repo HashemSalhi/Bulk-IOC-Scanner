@@ -1,7 +1,7 @@
 """Input validation helpers."""
 from fastapi import HTTPException
 
-from app.config import settings
+from bulk_ioc_scanner.config import settings
 
 
 def validate_ioc_list(iocs: list[str]) -> list[str]:

@@ -11,9 +11,9 @@ from datetime import datetime, timezone
 
 import httpx
 
-from app.models.schemas import ProviderResult
-from app.providers.base import Provider
-from app.services.ratelimit import retry_after_seconds
+from bulk_ioc_scanner.models.schemas import ProviderResult
+from bulk_ioc_scanner.providers.base import Provider
+from bulk_ioc_scanner.services.ratelimit import retry_after_seconds
 
 logger = logging.getLogger(__name__)
 

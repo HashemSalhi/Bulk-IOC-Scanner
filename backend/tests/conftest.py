@@ -13,10 +13,10 @@ import httpx  # noqa: E402
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 
-from app.database.db import init_db  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models.schemas import ProviderResult  # noqa: E402
-from app.providers.base import Provider  # noqa: E402
+from bulk_ioc_scanner.database.db import init_db  # noqa: E402
+from bulk_ioc_scanner.main import app  # noqa: E402
+from bulk_ioc_scanner.models.schemas import ProviderResult  # noqa: E402
+from bulk_ioc_scanner.providers.base import Provider  # noqa: E402
 
 
 class FakeProvider(Provider):
@@ -53,12 +53,12 @@ class _NoLimit:
 
 @pytest.fixture(autouse=True)
 def _mock_providers(monkeypatch):
-    monkeypatch.setattr("app.services.scanner.get_providers", lambda: [FakeProvider()])
+    monkeypatch.setattr("bulk_ioc_scanner.services.scanner.get_providers", lambda: [FakeProvider()])
     # Disable rate pacing so integration tests run fast (pacing is unit-tested separately)
-    from app.services.ratelimit import limiter
+    from bulk_ioc_scanner.services.ratelimit import limiter
     monkeypatch.setattr(limiter, "for_provider", lambda name: _NoLimit())
     # Reset the keystore singleton so saved keys/toggles don't leak across tests
-    from app.services.keystore import keystore
+    from bulk_ioc_scanner.services.keystore import keystore
     keystore._keys.clear()
     keystore._enabled.clear()
 

@@ -4,8 +4,8 @@ from sqlalchemy import delete, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.schemas import ProviderResult, ScanResult
-from app.models.tables import ApiKey, ProviderResponse, Scan, _utcnow
+from bulk_ioc_scanner.models.schemas import ProviderResult, ScanResult
+from bulk_ioc_scanner.models.tables import ApiKey, ProviderResponse, Scan, _utcnow
 
 
 async def save_scan(db: AsyncSession, result: ScanResult) -> int:

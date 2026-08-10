@@ -1,7 +1,7 @@
 """Tests for IOC type detection and defang normalization."""
 import pytest
 
-from app.services.ioc_detect import detect, parse_bulk_input, refang
+from bulk_ioc_scanner.services.ioc_detect import detect, parse_bulk_input, refang
 
 
 @pytest.mark.parametrize("ioc,expected", [

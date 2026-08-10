@@ -10,7 +10,7 @@ import time
 
 import httpx
 
-from app.config import settings
+from bulk_ioc_scanner.config import settings
 
 
 def retry_after_seconds(response: "httpx.Response", default: float = 15.0) -> float:

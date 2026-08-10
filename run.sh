@@ -103,7 +103,7 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 cyan "[start] Backend  -> http://$BACKEND_HOST:$BACKEND_PORT  (API docs at /docs)"
-(cd "$BACKEND" && "$PY" -m uvicorn app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" --reload) &
+(cd "$BACKEND" && "$PY" -m uvicorn bulk_ioc_scanner.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" --reload) &
 PIDS+=($!)
 
 cyan "[start] Frontend -> http://localhost:$FRONTEND_PORT"

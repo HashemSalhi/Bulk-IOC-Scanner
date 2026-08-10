@@ -2,11 +2,11 @@
 import httpx
 import pytest
 
-from app.providers.abuseipdb import AbuseIPDBProvider
-from app.providers.greynoise import GreyNoiseProvider
-from app.providers.threatfox import ThreatFoxProvider
-from app.providers.urlscan import URLScanProvider
-from app.providers.virustotal import VirusTotalProvider
+from bulk_ioc_scanner.providers.abuseipdb import AbuseIPDBProvider
+from bulk_ioc_scanner.providers.greynoise import GreyNoiseProvider
+from bulk_ioc_scanner.providers.threatfox import ThreatFoxProvider
+from bulk_ioc_scanner.providers.urlscan import URLScanProvider
+from bulk_ioc_scanner.providers.virustotal import VirusTotalProvider
 
 
 def make_client(handler) -> httpx.AsyncClient:
@@ -93,7 +93,7 @@ async def test_vt_rate_limit_retries_then_errors(monkeypatch):
         return httpx.Response(429)
 
     # Don't actually wait for the Retry-After backoff
-    import app.providers.virustotal as vt
+    import bulk_ioc_scanner.providers.virustotal as vt
     async def _instant(_):
         return None
     monkeypatch.setattr(vt.asyncio, "sleep", _instant)
@@ -250,7 +250,7 @@ def test_urlscan_supports():
 # ── IPify Geolocation ─────────────────────────────────────────────────────────
 
 async def test_ipify_geolocates_ip():
-    from app.providers.ipify import IPifyProvider
+    from bulk_ioc_scanner.providers.ipify import IPifyProvider
 
     def handler(request):
         assert request.url.params.get("apiKey") == "ip-key"
@@ -276,7 +276,7 @@ async def test_ipify_geolocates_ip():
 
 
 async def test_ipify_invalid_key():
-    from app.providers.ipify import IPifyProvider
+    from bulk_ioc_scanner.providers.ipify import IPifyProvider
 
     provider = IPifyProvider("bad-key")
     async with make_client(lambda r: httpx.Response(403, json={"messages": "no access"})) as client:
@@ -286,7 +286,7 @@ async def test_ipify_invalid_key():
 
 
 def test_ipify_only_supports_ip():
-    from app.providers.ipify import IPifyProvider
+    from bulk_ioc_scanner.providers.ipify import IPifyProvider
 
     provider = IPifyProvider("ip-key")
     assert provider.supports("ip")
@@ -297,8 +297,8 @@ def test_ipify_only_supports_ip():
 # ── Registry honors the on/off toggle ─────────────────────────────────────────
 
 def test_registry_respects_provider_toggle():
-    from app.providers.registry import get_providers
-    from app.services.keystore import keystore
+    from bulk_ioc_scanner.providers.registry import get_providers
+    from bulk_ioc_scanner.services.keystore import keystore
 
     keystore._keys.clear(); keystore._enabled.clear()
     keystore._keys["virustotal"] = "x"           # key present, toggle defaults on
@@ -314,7 +314,7 @@ def test_registry_respects_provider_toggle():
 
 async def test_rdap_domain_newly_registered():
     from datetime import datetime, timezone, timedelta
-    from app.providers.rdap import RDAPProvider
+    from bulk_ioc_scanner.providers.rdap import RDAPProvider
 
     recent = (datetime.now(timezone.utc) - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -336,7 +336,7 @@ async def test_rdap_domain_newly_registered():
 
 
 async def test_rdap_ip_network():
-    from app.providers.rdap import RDAPProvider
+    from bulk_ioc_scanner.providers.rdap import RDAPProvider
 
     def handler(request):
         return httpx.Response(200, json={
@@ -354,7 +354,7 @@ async def test_rdap_ip_network():
 
 
 async def test_rdap_404_no_record():
-    from app.providers.rdap import RDAPProvider
+    from bulk_ioc_scanner.providers.rdap import RDAPProvider
     provider = RDAPProvider()
     async with make_client(lambda r: httpx.Response(404)) as client:
         res = await provider.lookup(client, "nope.invalid", "domain")
@@ -363,7 +363,7 @@ async def test_rdap_404_no_record():
 
 
 def test_rdap_supports():
-    from app.providers.rdap import RDAPProvider
+    from bulk_ioc_scanner.providers.rdap import RDAPProvider
     p = RDAPProvider()
     assert p.supports("domain") and p.supports("ip") and p.supports("cidr")
     assert not p.supports("md5")

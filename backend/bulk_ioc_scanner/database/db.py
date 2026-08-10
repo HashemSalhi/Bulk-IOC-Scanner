@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-from app.config import settings
+from bulk_ioc_scanner.config import settings
 
 engine = create_async_engine(settings.database_url, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -13,7 +13,7 @@ class Base(DeclarativeBase):
 
 async def init_db() -> None:
     """Create all tables on startup, then add any newly-declared columns."""
-    from app.models import tables  # noqa: F401 — ensures models are registered
+    from bulk_ioc_scanner.models import tables  # noqa: F401 — ensures models are registered
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import httpx
 
-from app.models.schemas import ProviderResult
+from bulk_ioc_scanner.models.schemas import ProviderResult
 
 # All IOC types understood by the system
 IOC_TYPES = {"md5", "sha1", "sha256", "ip", "domain", "url"}

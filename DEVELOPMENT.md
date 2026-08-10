@@ -15,7 +15,7 @@ pip install -r requirements.txt
 cp ../.env.example .env   # then fill in API keys
 
 # Run dev server
-uvicorn app.main:app --reload          # http://localhost:8000
+uvicorn bulk_ioc_scanner.main:app --reload          # http://localhost:8000
 # Interactive API docs: http://localhost:8000/docs
 ```
 
@@ -40,7 +40,7 @@ docker compose up --build
 ## Architecture
 
 ```
-backend/app/
+backend/bulk_ioc_scanner/
   main.py              — FastAPI app, CORS, lifespan (DB init), router mounts
   config.py            — pydantic-settings; loads backend/.env; exposes settings singleton
   api/

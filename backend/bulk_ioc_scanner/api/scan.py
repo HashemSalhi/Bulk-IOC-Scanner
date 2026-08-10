@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
-from app.database.crud import save_scan, update_scan_notes, update_scan_tag
-from app.database.db import AsyncSessionLocal, get_db
-from app.models.schemas import (
+from bulk_ioc_scanner.config import settings
+from bulk_ioc_scanner.database.crud import save_scan, update_scan_notes, update_scan_tag
+from bulk_ioc_scanner.database.db import AsyncSessionLocal, get_db
+from bulk_ioc_scanner.models.schemas import (
     FileHashInfo,
     FileScanResult,
     NotesUpdate,
@@ -18,10 +18,10 @@ from app.models.schemas import (
     TagUpdate,
     TextScanRequest,
 )
-from app.services.hashing import hash_upload
-from app.services.ioc_detect import parse_bulk_input
-from app.services.scanner import scan_bulk, scan_bulk_stream
-from app.utils.validation import validate_ioc_list
+from bulk_ioc_scanner.services.hashing import hash_upload
+from bulk_ioc_scanner.services.ioc_detect import parse_bulk_input
+from bulk_ioc_scanner.services.scanner import scan_bulk, scan_bulk_stream
+from bulk_ioc_scanner.utils.validation import validate_ioc_list
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
 logger = logging.getLogger(__name__)

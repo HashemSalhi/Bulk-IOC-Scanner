@@ -12,8 +12,8 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
-from app.providers.catalog import PROVIDERS, PROVIDERS_BY_ID
+from bulk_ioc_scanner.config import settings
+from bulk_ioc_scanner.providers.catalog import PROVIDERS, PROVIDERS_BY_ID
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class KeyStore:
 
     async def load_from_db(self, db: AsyncSession) -> None:
         """Called once during app startup; DB values override env values."""
-        from app.database.crud import get_all_provider_state
+        from bulk_ioc_scanner.database.crud import get_all_provider_state
 
         state = await get_all_provider_state(db)
         for provider, row in state.items():
@@ -48,7 +48,7 @@ class KeyStore:
 
     async def set(self, db: AsyncSession, provider: str, key: str) -> None:
         """Update a key in memory and persist it to the database."""
-        from app.database.crud import upsert_api_key
+        from bulk_ioc_scanner.database.crud import upsert_api_key
 
         key = key.strip()
         if key:
@@ -61,7 +61,7 @@ class KeyStore:
 
     async def set_enabled(self, db: AsyncSession, provider: str, enabled: bool) -> None:
         """Persist the on/off toggle for a provider."""
-        from app.database.crud import set_provider_enabled
+        from bulk_ioc_scanner.database.crud import set_provider_enabled
 
         self._enabled[provider] = enabled
         await set_provider_enabled(db, provider, enabled)

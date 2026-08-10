@@ -2,18 +2,18 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings as cfg
-from app.database.db import get_db
+from bulk_ioc_scanner.config import settings as cfg
+from bulk_ioc_scanner.database.db import get_db
 from fastapi import HTTPException
 
-from app.models.schemas import (
+from bulk_ioc_scanner.models.schemas import (
     ApiKeyUpdate,
     ProviderStatus,
     ProviderToggle,
     SettingsResponse,
 )
-from app.providers.catalog import PROVIDERS, PROVIDERS_BY_ID
-from app.services.keystore import keystore
+from bulk_ioc_scanner.providers.catalog import PROVIDERS, PROVIDERS_BY_ID
+from bulk_ioc_scanner.services.keystore import keystore
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 

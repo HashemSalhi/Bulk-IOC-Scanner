@@ -1,6 +1,6 @@
 """Tests for the risk scoring engine."""
-from app.models.schemas import ProviderResult
-from app.services.risk import compute_risk
+from bulk_ioc_scanner.models.schemas import ProviderResult
+from bulk_ioc_scanner.services.risk import compute_risk
 
 
 def vt_result(mal, sus, harm, undet):

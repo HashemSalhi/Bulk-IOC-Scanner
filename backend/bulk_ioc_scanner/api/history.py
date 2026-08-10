@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.crud import (
+from bulk_ioc_scanner.database.crud import (
     clear_scans,
     count_scans,
     get_scan,
@@ -10,8 +10,8 @@ from app.database.crud import (
     hydrate_provider_results,
     list_scans,
 )
-from app.database.db import get_db
-from app.models.schemas import HistoryPage, ScanDetail, ScanHistoryItem
+from bulk_ioc_scanner.database.db import get_db
+from bulk_ioc_scanner.models.schemas import HistoryPage, ScanDetail, ScanHistoryItem
 
 router = APIRouter(prefix="/api/history", tags=["history"])
 

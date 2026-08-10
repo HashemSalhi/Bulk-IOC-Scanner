@@ -1,5 +1,5 @@
 """Compute a normalised 0-100 risk score from provider results."""
-from app.models.schemas import ProviderResult
+from bulk_ioc_scanner.models.schemas import ProviderResult
 
 # If more than this many VirusTotal vendors flag an IOC as malicious, treat it as
 # at least Medium risk regardless of the malicious/total ratio. A handful of
