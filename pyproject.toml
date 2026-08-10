@@ -43,6 +43,9 @@ dev = [
 Homepage = "https://github.com/HashemSalhi/Bulk-IOC-Scanner"
 Issues = "https://github.com/HashemSalhi/Bulk-IOC-Scanner/issues"
 
+[project.scripts]
+bulk-ioc-scanner = "bulk_ioc_scanner.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["backend/bulk_ioc_scanner"]
 
