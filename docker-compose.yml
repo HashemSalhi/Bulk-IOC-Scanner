@@ -1,34 +1,20 @@
 services:
-  backend:
+  bulk-ioc-scanner:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
-    env_file:
-      # Optional: keys can also be added at runtime via the Settings page
-      # (they persist in the db_data volume). Set them here to pre-seed instead.
-      - path: ./backend/.env
-        required: false
-    volumes:
-      - db_data:/app
+    image: ghcr.io/hashemsalhi/bulk-ioc-scanner:latest
     ports:
       - "8000:8000"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "80:80"
-    depends_on:
-      backend:
-        condition: service_healthy
+    volumes:
+      # Scan history and API keys. Delete this volume to start clean.
+      - scanner_data:/data
+    env_file:
+      # Optional. Keys are usually added on the Settings page instead; either
+      # way they persist in the volume.
+      - path: .env
+        required: false
     restart: unless-stopped
 
 volumes:
-  db_data:
+  scanner_data:
