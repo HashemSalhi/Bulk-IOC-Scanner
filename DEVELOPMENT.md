@@ -1,107 +1,161 @@
 # Development Guide
 
-Architecture and common commands for working in this repository.
+For working on the code. If you just want to run the tool, see the
+[README](README.md).
 
-## Commands
-
-### Backend
-
-```bash
-cd backend
-
-# Setup (first time)
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp ../.env.example .env   # then fill in API keys
-
-# Run dev server
-uvicorn bulk_ioc_scanner.main:app --reload          # http://localhost:8000
-# Interactive API docs: http://localhost:8000/docs
-```
-
-### Frontend
+## Setup
 
 ```bash
-cd frontend
-npm install
-npm run dev      # http://localhost:5173
-npm run build    # production build → dist/
+git clone https://github.com/HashemSalhi/Bulk-IOC-Scanner.git
+cd Bulk-IOC-Scanner
+
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
 ```
 
-### Docker (full stack)
+Build the interface once so the backend has something to serve:
 
 ```bash
-# From project root, after setting up backend/.env
-docker compose up --build
+cd frontend && npm ci && npm run build && cd ..
 ```
 
----
+That writes into `backend/bulk_ioc_scanner/web/`, which is gitignored — the
+release workflow rebuilds it and ships it inside the wheel.
 
-## Architecture
+## Running
+
+```bash
+bulk-ioc-scanner                   # what users run: one port, prebuilt UI
+python scripts/dev.py              # two ports, live reload on both
+```
+
+`scripts/dev.py` is the only path that needs Node at runtime. It starts uvicorn
+with `--reload` on 8000 and Vite on 5173, and Vite proxies `/api` to the
+backend. Stdlib only, so it works the same on Windows.
+
+Interactive API docs: `http://localhost:8000/docs`.
+
+## Tests
+
+```bash
+pytest                             # from the repository root
+pytest backend/tests/test_retry.py -v
+```
+
+No network and no database setup: `backend/tests/conftest.py` points the app at
+a temporary data directory and SQLite file before any application module is
+imported, swaps in a stub provider, and disables rate pacing.
+
+Tests that need the built interface are skipped when `backend/bulk_ioc_scanner/web/`
+is absent, so a fresh clone still runs green.
+
+## Layout
 
 ```
+pyproject.toml            packaging, dependencies, pytest config
+Dockerfile                node build stage -> python runtime, one container
+scripts/dev.py            two-server development launcher
+scripts/pyinstaller_entry.py  entry point for the standalone executables
+
 backend/bulk_ioc_scanner/
-  main.py              — FastAPI app, CORS, lifespan (DB init), router mounts
-  config.py            — pydantic-settings; loads backend/.env; exposes settings singleton
+  cli.py                  bulk-ioc-scanner command: ports, browser, banner
+  paths.py                per-OS data directory, permissions, legacy DB move
+  web_ui.py               serves the built UI with an index.html fallback
+  main.py                 FastAPI app, lifespan, router and UI mounting
+  config.py               pydantic-settings; every setting and its default
   api/
-    scan.py            — POST /api/scan, /api/scan/text, /api/scan/files, PATCH /api/scan/{id}/tag
-    history.py         — GET /api/history, /api/history/stats, /api/history/{id}
-    settings.py        — GET /api/settings (provider status + limits, keys masked)
+    scan.py               POST /api/scan, /scan/text, /scan/stream, /scan/files
+    history.py            GET /api/history, /history/stats, /history/{id}
+    settings.py           GET/PUT /api/settings — provider status and keys
   providers/
-    base.py            — Provider ABC: name, supports(ioc_type)->bool, async lookup()->ProviderResult
-    virustotal.py      — VT API v3: hash/ip/domain/url
-    abuseipdb.py       — AbuseIPDB v2: ip only
-    registry.py        — get_providers() → list of enabled Provider instances
+    base.py               Provider ABC: supports(), lookup(), lookup_batch()
+    catalog.py            the provider list: ids, display names, key required
+    registry.py           builds instances for the providers currently active
+    http.py               shared client: proxy, CA bundle, retry with backoff
+    virustotal.py abuseipdb.py greynoise.py threatfox.py urlscan.py
+    ipify.py rdap.py
   services/
-    ioc_detect.py      — detect(ioc)->type, parse_bulk_input(text)->list[str]
-    hashing.py         — hash_upload(UploadFile, max_bytes)->FileHashes; deletes temp file in finally
-    scanner.py         — scan_bulk(iocs, source_files)->list[ScanResult]; asyncio.gather across providers
-    risk.py            — compute_risk(provider_results)->(score, band); max-wins across providers
+    ioc_detect.py         detect(ioc) -> type; refang(); parse_bulk_input()
+    scanner.py            scan_bulk() and scan_bulk_stream() orchestration
+    risk.py               compute_risk() -> (score, band), max across sources
+    keystore.py           in-memory keys and on/off toggles, backed by SQLite
+    ratelimit.py          per-provider pacing and 429 cooldowns
+    hashing.py            hash_upload(): streams a file, deletes the temp copy
   database/
-    db.py              — AsyncSession factory, init_db(), get_db() dependency
-    crud.py            — save_scan, update_scan_tag, list_scans, get_scan, get_stats, hydrate_provider_results
+    db.py                 engine, session factory, init_db(), column migration
+    crud.py               scan persistence, history queries, key storage
   models/
-    tables.py          — Scan, ProviderResponse ORM tables
-    schemas.py         — Pydantic schemas: ScanRequest, ProviderResult, ScanResult, ScanDetail, etc.
+    tables.py             Scan, ProviderResponse, ApiKey
+    schemas.py            request and response models
 
 frontend/src/
-  api/client.js        — fetch wrapper: scanIOCs, scanText, scanFiles, tagScan, getHistory, getSettings
-  components/
-    Sidebar.jsx        — nav with Bulk-IOC-Scanner branding
-    RiskBadge.jsx      — color-coded High/Medium/Low chip
-    ScanProgress.jsx   — progress bar for scan in-flight
-    TagSelector.jsx    — Malware/Phishing/Investigation/False Positive buttons; calls tagScan API
-    FileDropzone.jsx   — drag-drop + click file picker; shows selected files list
-    ResultsTable.jsx   — main results view: search, type/risk filter, sort, Export CSV, row→modal
-    ResultDetailModal.jsx — slide-out panel: per-provider breakdown, TagSelector, investigation report
-    CopyReportButton.jsx  — builds + clipboard-copies a formatted ASCII report
-  pages/
-    Dashboard.jsx      — stat cards, provider status, recent scans
-    Scan.jsx           — text/file mode tabs, textarea, FileDropzone, ScanProgress, ResultsTable
-    History.jsx        — history table, click row→getScanDetail→ResultDetailModal
-    Settings.jsx       — provider status, env instructions, limits, adding-provider guide
+  api/client.js           every API call; base URL is the relative "/api"
+  pages/                  Dashboard, Scan, History, Settings
+  components/             results table, detail modal, dropzone, badges
+  utils/                  defang, IOC import from CSV/TXT
 ```
 
-### Key data flows
+## How a scan works
 
-**Text IOC scan:**  
-`Scan.jsx` → `POST /api/scan` → `ioc_detect.detect()` per IOC → `scanner.scan_bulk()` fans out to providers via `asyncio.gather` → `risk.compute_risk()` → `crud.save_scan()` → response → `ResultsTable`
+`Scan.jsx` posts to `/api/scan/stream`, which returns newline-delimited JSON —
+one result per line, written as each indicator finishes rather than at the end.
 
-**File scan:**  
-`FileDropzone` → `POST /api/scan/files` (multipart) → `hashing.hash_upload()` streams file, computes MD5/SHA1/SHA256, deletes temp → SHA256 only enters `scan_bulk()` → same path as above → response includes `file_info` with all three hashes
+`scan_bulk_stream()` first answers from cache, then dispatches provider-major:
+each provider receives every indicator it supports in one call, paced through
+its own limiter. Results land on a queue and an indicator is emitted once all
+of its providers have reported.
 
-### Provider system
+Two invariants worth preserving:
 
-Adding a provider: implement `base.Provider` ABC, add to `registry.get_providers()`, add key to `config.py` + `.env.example`. The provider ABC requires only `supports(ioc_type)` and `async lookup(client, ioc, ioc_type) -> ProviderResult`. See `providers/abuseipdb.py` as the minimal reference example.
+- **One result per input, always.** A provider that raises, times out, or
+  answers about the wrong indicator only loses its own column.
+  `backend/tests/test_failure_isolation.py` pins this down.
+- **Nothing buffers the stream.** The progress bar only moves as lines arrive,
+  so any proxy or middleware added in front must not collect the response.
 
-### Risk scoring
+## Adding a provider
 
-`risk.py`: VT malicious/total ratio weighted highest, suspicious at 0.5×; AbuseIPDB confidence score (0–100) fed directly. `max()` across all successful provider scores. 0–30 = Low, 31–70 = Medium, 71–100 = High.
+1. Implement `Provider` in `backend/bulk_ioc_scanner/providers/yours.py`:
+   `supports(ioc_type)` and `async lookup(client, ioc, ioc_type)`.
+   `abuseipdb.py` is the smallest example.
+2. Make requests with `request_with_retry()` from `providers/http.py` so you
+   inherit proxy support, the CA bundle, and 429 backoff.
+3. Return a `ProviderResult` for every outcome, including failures — never
+   raise out of `lookup()`.
+4. Add a `ProviderInfo` to `providers/catalog.py`, a key field to `config.py`,
+   and the id-to-class mapping in `providers/registry.py`.
+5. If the API has a real bulk endpoint, override `lookup_batch()` and set
+   `batch_capable = True`; return exactly one result per input item.
 
-### Security notes
+## Risk scoring
 
-- API keys only in `backend/.env` (gitignored); never returned by any endpoint (masked hint only in `/api/settings`)
-- File bytes never leave the backend process: temp file deleted in `finally`, only SHA256 egresses
-- CORS restricted to `FRONTEND_ORIGIN`; configurable in `.env`
-- Per-scan IOC cap and per-file size cap enforced in `validation.py` and `hashing.py`
-- 429 / auth errors from providers returned as per-IOC `success=false` results, not unhandled exceptions
+`services/risk.py`. VirusTotal's malicious/total ratio weighs heaviest,
+suspicious counts half. AbuseIPDB's confidence score feeds in directly. The
+highest score across sources wins: 0–30 Low, 31–70 Medium, 71–100 High. More
+than four VirusTotal vendors flagging an indicator forces at least Medium.
+
+## Releasing
+
+Push a `v*` tag. `.github/workflows/release.yml` builds the interface once,
+then publishes the wheel and sdist to PyPI through Trusted Publishing, the
+Linux and Windows executables, and a multi-architecture container image, and
+attaches everything to the GitHub release with checksums.
+
+Run the workflow manually with **Dry run** to build all of it and publish none
+of it.
+
+PyPI publishing needs a one-time Trusted Publisher entry on the PyPI side for
+this repository and the `pypi` environment. Nothing is stored as a repository
+secret.
+
+## Notes on security
+
+- API keys live in the user data directory, never in the repository. The
+  database file is created readable only by its owner. Keys are stored in
+  plain text, so the file matters.
+- Uploaded files are hashed in a temporary file that is deleted in a `finally`
+  block; only the SHA-256 is ever sent to a provider.
+- Requests are same-origin, so CORS stays off unless `FRONTEND_ORIGIN` is set.
+- There is no authentication. Binding to `0.0.0.0` exposes the whole interface,
+  including saved keys, to anyone who can reach the port.
