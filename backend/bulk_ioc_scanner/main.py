@@ -9,6 +9,7 @@ from bulk_ioc_scanner.config import settings as cfg
 from bulk_ioc_scanner.database.db import AsyncSessionLocal, init_db
 from bulk_ioc_scanner.paths import db_path, migrate_legacy_db, protect_db_file
 from bulk_ioc_scanner.utils.logging import configure_logging
+from bulk_ioc_scanner import web_ui
 
 configure_logging()
 
@@ -38,13 +39,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[cfg.frontend_origin],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# The UI is served from this same process, so requests are same-origin and
+# need no CORS. Set FRONTEND_ORIGIN only when hosting the UI somewhere else.
+if cfg.frontend_origin:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[cfg.frontend_origin],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(scan.router)
 app.include_router(history.router)
@@ -54,3 +58,7 @@ app.include_router(settings.router)
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "Bulk-IOC-Scanner"}
+
+
+# Registered last: its catch-all route must not shadow the API.
+web_ui.mount(app)

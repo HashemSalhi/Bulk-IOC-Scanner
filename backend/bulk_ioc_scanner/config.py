@@ -46,8 +46,9 @@ class Settings(BaseSettings):
     urlscan_rate_per_min: int = 60
     ipify_rate_per_min: int = 60
 
-    # CORS
-    frontend_origin: str = "http://localhost:5173"
+    # CORS — empty means same-origin only, which is the single-port default.
+    # Set this to e.g. http://localhost:5173 when serving the UI separately.
+    frontend_origin: str = ""
 
     # Database — defaults to the OS user data directory, not the install folder
     database_url: str = Field(default_factory=_default_database_url)
