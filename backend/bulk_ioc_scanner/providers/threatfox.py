@@ -2,14 +2,13 @@
 
 Requires a free abuse.ch Auth-Key (sent in the Auth-Key header).
 """
-import asyncio
 import logging
 
 import httpx
 
 from bulk_ioc_scanner.models.schemas import ProviderResult
 from bulk_ioc_scanner.providers.base import HASH_TYPES, Provider
-from bulk_ioc_scanner.services.ratelimit import retry_after_seconds
+from bulk_ioc_scanner.providers.http import ProviderRequestError, request_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -29,22 +28,20 @@ class ThreatFoxProvider(Provider):
         headers = {"Auth-Key": self._api_key, "Accept": "application/json"}
         payload = {"query": "search_ioc", "search_term": ioc}
 
-        for attempt in range(2):
-            try:
-                resp = await client.post(THREATFOX_URL, json=payload, headers=headers)
-                resp.raise_for_status()
-                body = resp.json()
-                break
-            except httpx.TimeoutException:
-                return self._error(ioc, ioc_type, "ThreatFox: request timed out")
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429 and attempt == 0:
-                    await asyncio.sleep(retry_after_seconds(e.response))
-                    continue
-                return self._http_error(ioc, ioc_type, e)
-            except Exception as e:
-                logger.exception("ThreatFox unexpected error for %s", ioc)
-                return self._error(ioc, ioc_type, str(e))
+        try:
+            resp = await request_with_retry(
+                client, "POST", THREATFOX_URL,
+                provider=self.name, json=payload, headers=headers,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+        except ProviderRequestError as e:
+            return self._error(ioc, ioc_type, f"ThreatFox: {e}")
+        except httpx.HTTPStatusError as e:
+            return self._http_error(ioc, ioc_type, e)
+        except Exception as e:
+            logger.exception("ThreatFox unexpected error for %s", ioc)
+            return self._error(ioc, ioc_type, str(e))
 
         status = body.get("query_status")
         if status == "no_result":

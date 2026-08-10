@@ -1,12 +1,11 @@
 """URLScan.io provider — surfaces existing scans for a domain/URL (context, not a verdict)."""
-import asyncio
 import logging
 
 import httpx
 
 from bulk_ioc_scanner.models.schemas import ProviderResult
 from bulk_ioc_scanner.providers.base import Provider
-from bulk_ioc_scanner.services.ratelimit import retry_after_seconds
+from bulk_ioc_scanner.providers.http import ProviderRequestError, request_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -28,22 +27,20 @@ class URLScanProvider(Provider):
         field = "page.url" if ioc_type == "url" else "domain"
         params = {"q": f'{field}:"{ioc}"', "size": 5}
 
-        for attempt in range(2):
-            try:
-                resp = await client.get(URLSCAN_SEARCH, params=params, headers=headers)
-                resp.raise_for_status()
-                body = resp.json()
-                break
-            except httpx.TimeoutException:
-                return self._error(ioc, ioc_type, "URLScan: request timed out")
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429 and attempt == 0:
-                    await asyncio.sleep(retry_after_seconds(e.response))
-                    continue
-                return self._http_error(ioc, ioc_type, e)
-            except Exception as e:
-                logger.exception("URLScan unexpected error for %s", ioc)
-                return self._error(ioc, ioc_type, str(e))
+        try:
+            resp = await request_with_retry(
+                client, "GET", URLSCAN_SEARCH,
+                provider=self.name, params=params, headers=headers,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+        except ProviderRequestError as e:
+            return self._error(ioc, ioc_type, f"URLScan: {e}")
+        except httpx.HTTPStatusError as e:
+            return self._http_error(ioc, ioc_type, e)
+        except Exception as e:
+            logger.exception("URLScan unexpected error for %s", ioc)
+            return self._error(ioc, ioc_type, str(e))
 
         results = body.get("results", []) or []
         total = body.get("total", len(results))

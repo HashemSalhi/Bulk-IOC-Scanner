@@ -93,10 +93,11 @@ async def test_vt_rate_limit_retries_then_errors(monkeypatch):
         return httpx.Response(429)
 
     # Don't actually wait for the Retry-After backoff
-    import bulk_ioc_scanner.providers.virustotal as vt
+    from bulk_ioc_scanner.providers import http as provider_http
+
     async def _instant(_):
         return None
-    monkeypatch.setattr(vt.asyncio, "sleep", _instant)
+    monkeypatch.setattr(provider_http.asyncio, "sleep", _instant)
 
     provider = VirusTotalProvider("fake-key")
     async with make_client(handler) as client:
@@ -104,7 +105,7 @@ async def test_vt_rate_limit_retries_then_errors(monkeypatch):
 
     assert not res.success
     assert "rate limit" in res.error.lower()
-    assert calls["n"] == 2  # initial attempt + one retry
+    assert calls["n"] == provider_http.MAX_ATTEMPTS
 
 
 # ── AbuseIPDB ─────────────────────────────────────────────────────────────────

@@ -1,5 +1,4 @@
 """VirusTotal API v3 provider."""
-import asyncio
 import base64
 import logging
 from datetime import datetime, timezone
@@ -8,7 +7,7 @@ import httpx
 
 from bulk_ioc_scanner.models.schemas import ProviderResult
 from bulk_ioc_scanner.providers.base import HASH_TYPES, Provider
-from bulk_ioc_scanner.services.ratelimit import retry_after_seconds
+from bulk_ioc_scanner.providers.http import ProviderRequestError, request_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -26,19 +25,15 @@ class VirusTotalProvider(Provider):
 
     async def lookup(self, client: httpx.AsyncClient, ioc: str, ioc_type: str) -> ProviderResult:
         headers = {"x-apikey": self._api_key}
-        for attempt in range(2):  # one retry on 429
-            try:
-                return await self._dispatch(client, headers, ioc, ioc_type)
-            except httpx.TimeoutException:
-                return self._error(ioc, ioc_type, "Request timed out")
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429 and attempt == 0:
-                    await asyncio.sleep(retry_after_seconds(e.response))
-                    continue
-                return self._http_error(ioc, ioc_type, e)
-            except Exception as e:
-                logger.exception("VirusTotal unexpected error for %s", ioc)
-                return self._error(ioc, ioc_type, str(e))
+        try:
+            return await self._dispatch(client, headers, ioc, ioc_type)
+        except ProviderRequestError as e:
+            return self._error(ioc, ioc_type, f"VirusTotal: {e}")
+        except httpx.HTTPStatusError as e:
+            return self._http_error(ioc, ioc_type, e)
+        except Exception as e:
+            logger.exception("VirusTotal unexpected error for %s", ioc)
+            return self._error(ioc, ioc_type, str(e))
 
     async def _dispatch(self, client, headers, ioc, ioc_type):
         if ioc_type in HASH_TYPES:
@@ -54,7 +49,9 @@ class VirusTotalProvider(Provider):
     # ── Hash lookup ───────────────────────────────────────────────────────────
 
     async def _lookup_hash(self, client, headers, ioc, ioc_type):
-        resp = await client.get(f"{VT_BASE}/files/{ioc}", headers=headers)
+        resp = await request_with_retry(
+            client, "GET", f"{VT_BASE}/files/{ioc}", provider=self.name, headers=headers
+        )
         resp.raise_for_status()
         data = resp.json().get("data", {})
         attrs = data.get("attributes", {})
@@ -100,7 +97,9 @@ class VirusTotalProvider(Provider):
     # ── IP lookup ─────────────────────────────────────────────────────────────
 
     async def _lookup_ip(self, client, headers, ioc):
-        resp = await client.get(f"{VT_BASE}/ip_addresses/{ioc}", headers=headers)
+        resp = await request_with_retry(
+            client, "GET", f"{VT_BASE}/ip_addresses/{ioc}", provider=self.name, headers=headers
+        )
         resp.raise_for_status()
         data = resp.json().get("data", {})
         attrs = data.get("attributes", {})
@@ -135,7 +134,9 @@ class VirusTotalProvider(Provider):
     # ── Domain lookup ─────────────────────────────────────────────────────────
 
     async def _lookup_domain(self, client, headers, ioc):
-        resp = await client.get(f"{VT_BASE}/domains/{ioc}", headers=headers)
+        resp = await request_with_retry(
+            client, "GET", f"{VT_BASE}/domains/{ioc}", provider=self.name, headers=headers
+        )
         resp.raise_for_status()
         data = resp.json().get("data", {})
         attrs = data.get("attributes", {})
@@ -171,7 +172,9 @@ class VirusTotalProvider(Provider):
     async def _lookup_url(self, client, headers, ioc):
         # VT URL lookup uses a base64url-encoded URL without padding
         url_id = base64.urlsafe_b64encode(ioc.encode()).rstrip(b"=").decode()
-        resp = await client.get(f"{VT_BASE}/urls/{url_id}", headers=headers)
+        resp = await request_with_retry(
+            client, "GET", f"{VT_BASE}/urls/{url_id}", provider=self.name, headers=headers
+        )
         resp.raise_for_status()
         data = resp.json().get("data", {})
         attrs = data.get("attributes", {})

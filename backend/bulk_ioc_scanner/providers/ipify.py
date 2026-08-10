@@ -4,14 +4,13 @@ Uses geo.ipify.org (https://geo.ipify.org/docs). Free tier needs an API key.
 Pure enrichment: returns country / region / city / coordinates / ISP / ASN —
 it does not assert maliciousness, so it never sets a malicious signal.
 """
-import asyncio
 import logging
 
 import httpx
 
 from bulk_ioc_scanner.models.schemas import ProviderResult
 from bulk_ioc_scanner.providers.base import Provider
-from bulk_ioc_scanner.services.ratelimit import retry_after_seconds
+from bulk_ioc_scanner.providers.http import ProviderRequestError, request_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -32,22 +31,19 @@ class IPifyProvider(Provider):
             return self._error(ioc, ioc_type, "IPify only supports IP addresses")
 
         params = {"apiKey": self._api_key, "ipAddress": ioc}
-        for attempt in range(2):
-            try:
-                resp = await client.get(IPIFY_BASE, params=params)
-                resp.raise_for_status()
-                data = resp.json()
-                break
-            except httpx.TimeoutException:
-                return self._error(ioc, ioc_type, "IPify: request timed out")
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429 and attempt == 0:
-                    await asyncio.sleep(retry_after_seconds(e.response))
-                    continue
-                return self._http_error(ioc, ioc_type, e)
-            except Exception as e:
-                logger.exception("IPify unexpected error for %s", ioc)
-                return self._error(ioc, ioc_type, str(e))
+        try:
+            resp = await request_with_retry(
+                client, "GET", IPIFY_BASE, provider=self.name, params=params,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except ProviderRequestError as e:
+            return self._error(ioc, ioc_type, f"IPify: {e}")
+        except httpx.HTTPStatusError as e:
+            return self._http_error(ioc, ioc_type, e)
+        except Exception as e:
+            logger.exception("IPify unexpected error for %s", ioc)
+            return self._error(ioc, ioc_type, str(e))
 
         loc = data.get("location", {}) or {}
         asn = data.get("as", {}) or {}

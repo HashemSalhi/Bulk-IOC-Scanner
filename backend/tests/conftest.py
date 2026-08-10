@@ -54,6 +54,9 @@ class _NoLimit:
     async def __aexit__(self, *exc):
         return False
 
+    def penalize(self, seconds):
+        """Accept 429 back-off penalties and ignore them, like the pacing."""
+
 
 @pytest.fixture(autouse=True)
 def _mock_providers(monkeypatch):

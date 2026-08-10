@@ -5,7 +5,6 @@ replacement for WHOIS. Returns registrar / creation date / nameservers for
 domains and network owner / allocation for IPs and CIDRs. Flags newly-registered
 domains, a common phishing/malware signal.
 """
-import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -13,7 +12,7 @@ import httpx
 
 from bulk_ioc_scanner.models.schemas import ProviderResult
 from bulk_ioc_scanner.providers.base import Provider
-from bulk_ioc_scanner.services.ratelimit import retry_after_seconds
+from bulk_ioc_scanner.providers.http import ProviderRequestError, request_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -39,27 +38,25 @@ class RDAPProvider(Provider):
         else:
             return self._error(ioc, ioc_type, f"RDAP does not support type '{ioc_type}'")
 
-        for attempt in range(2):
-            try:
-                resp = await client.get(f"{RDAP_BASE}{path}", headers={"Accept": "application/rdap+json"})
-                if resp.status_code == 404:
-                    return ProviderResult(
-                        provider=self.name, ioc=ioc, ioc_type=ioc_type, success=True,
-                        detection_ratio="no record", raw={"found": False},
-                    )
-                resp.raise_for_status()
-                data = resp.json()
-                break
-            except httpx.TimeoutException:
-                return self._error(ioc, ioc_type, "RDAP: request timed out")
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429 and attempt == 0:
-                    await asyncio.sleep(retry_after_seconds(e.response))
-                    continue
-                return self._error(ioc, ioc_type, f"RDAP HTTP {e.response.status_code}")
-            except Exception as e:
-                logger.exception("RDAP unexpected error for %s", ioc)
-                return self._error(ioc, ioc_type, str(e))
+        try:
+            resp = await request_with_retry(
+                client, "GET", f"{RDAP_BASE}{path}",
+                provider=self.name, headers={"Accept": "application/rdap+json"},
+            )
+            if resp.status_code == 404:
+                return ProviderResult(
+                    provider=self.name, ioc=ioc, ioc_type=ioc_type, success=True,
+                    detection_ratio="no record", raw={"found": False},
+                )
+            resp.raise_for_status()
+            data = resp.json()
+        except ProviderRequestError as e:
+            return self._error(ioc, ioc_type, f"RDAP: {e}")
+        except httpx.HTTPStatusError as e:
+            return self._error(ioc, ioc_type, f"RDAP HTTP {e.response.status_code}")
+        except Exception as e:
+            logger.exception("RDAP unexpected error for %s", ioc)
+            return self._error(ioc, ioc_type, str(e))
 
         if ioc_type == "domain":
             return self._parse_domain(ioc, ioc_type, data)
