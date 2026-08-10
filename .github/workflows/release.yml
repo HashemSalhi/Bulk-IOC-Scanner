@@ -1,0 +1,220 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build everything but do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  # Every job needs the same built UI, so it is built once and shared.
+  UI_ARTIFACT: web-ui
+
+jobs:
+  ui:
+    name: Build the web UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend
+
+      - run: npm run build
+        working-directory: frontend
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.UI_ARTIFACT }}
+          path: backend/bulk_ioc_scanner/web
+          if-no-files-found: error
+
+  distributions:
+    name: Wheel and sdist
+    needs: ui
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.UI_ARTIFACT }}
+          path: backend/bulk_ioc_scanner/web
+
+      - run: pip install build && python -m build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/*
+          if-no-files-found: error
+
+  executables:
+    name: Executable (${{ matrix.label }})
+    needs: ui
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 22.04 deliberately: binaries built here run on older glibc than a
+          # 24.04 build would, which matters on long-term-support distros.
+          - os: ubuntu-22.04
+            label: linux-x64
+            name: bulk-ioc-scanner-linux-x64
+            binary: bulk-ioc-scanner-linux-x64
+          - os: windows-latest
+            label: windows-x64
+            name: bulk-ioc-scanner-windows-x64
+            # PyInstaller appends .exe itself, so --name must not include it.
+            binary: bulk-ioc-scanner-windows-x64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.UI_ARTIFACT }}
+          path: backend/bulk_ioc_scanner/web
+
+      - name: Install
+        run: pip install . pyinstaller
+
+      - name: Build
+        shell: bash
+        run: |
+          pyinstaller \
+            --onefile \
+            --name "${{ matrix.name }}" \
+            --collect-all uvicorn \
+            --collect-all bulk_ioc_scanner \
+            --copy-metadata bulk-ioc-scanner \
+            --hidden-import aiosqlite \
+            --hidden-import sqlalchemy.dialects.sqlite.aiosqlite \
+            scripts/pyinstaller_entry.py
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          BIN="dist/${{ matrix.binary }}"
+          "$BIN" --version
+          "$BIN" --no-browser --port 8123 &
+          for _ in $(seq 1 45); do
+            curl -sf http://127.0.0.1:8123/health && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8123/ | grep -q '<div id="root">'
+          curl -sf http://127.0.0.1:8123/api/settings | grep -q providers
+          echo "the executable serves the UI and the API"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: executable-${{ matrix.label }}
+          path: dist/${{ matrix.binary }}
+          if-no-files-found: error
+
+  image:
+    name: Container image
+    needs: ui
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the registry
+        if: ${{ !inputs.dry_run }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ !inputs.dry_run }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  pypi:
+    name: Publish to PyPI
+    needs: [distributions, executables]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      # Trusted Publishing: no API token needs to be stored on the repository.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  release:
+    name: GitHub release
+    needs: [distributions, executables, image]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect the files and checksum them
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name 'bulk-ioc-scanner-*' -o -name '*.whl' -o -name '*.tar.gz' \) \
+            -exec cp {} release/ \;
+          cd release
+          chmod +x bulk-ioc-scanner-linux-x64 || true
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
