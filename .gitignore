@@ -25,6 +25,16 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 
+# Built web UI, compiled into the Python package at release time
+backend/bulk_ioc_scanner/web/
+
+# PyInstaller
+*.spec
+
+# Local tooling config
+CLAUDE.md
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
