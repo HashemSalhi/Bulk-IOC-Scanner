@@ -49,7 +49,23 @@ class Provider(ABC):
         request and set ``batch_capable = True``. The returned list must contain
         exactly one ProviderResult per input item (order need not match; the
         scanner re-keys results by ``ProviderResult.ioc``).
+
+        A lookup that raises becomes a failed result for that IOC alone, so one
+        bad indicator cannot take the rest of the batch down with it.
         """
-        return await asyncio.gather(
-            *(self.lookup(client, ioc, ioc_type) for ioc, ioc_type in items)
+        settled = await asyncio.gather(
+            *(self.lookup(client, ioc, ioc_type) for ioc, ioc_type in items),
+            return_exceptions=True,
         )
+        results = []
+        for (ioc, ioc_type), outcome in zip(items, settled):
+            if isinstance(outcome, BaseException):
+                results.append(
+                    ProviderResult(
+                        provider=self.name, ioc=ioc, ioc_type=ioc_type, success=False,
+                        error=str(outcome), raw={"error": str(outcome)},
+                    )
+                )
+            else:
+                results.append(outcome)
+        return results

@@ -1,4 +1,6 @@
 """Scan endpoints: text IOCs and file uploads."""
+import asyncio
+import json
 import logging
 from typing import Annotated
 
@@ -79,9 +81,18 @@ async def scan_stream(
 
     async def generate():
         # Own the session so it closes deterministically when the stream ends
-        async with AsyncSessionLocal() as db:
-            async for result in scan_bulk_stream(validated, db=db, force=force):
-                yield result.model_dump_json() + "\n"
+        try:
+            async with AsyncSessionLocal() as db:
+                async for result in scan_bulk_stream(validated, db=db, force=force):
+                    yield result.model_dump_json() + "\n"
+        except asyncio.CancelledError:
+            raise  # the client went away; nothing to report to
+        except Exception as e:
+            # The 200 and its headers are already on the wire, so this cannot
+            # become an HTTP error. Send a final record instead of truncating
+            # the stream and leaving the UI stuck on "in progress".
+            logger.exception("Streaming scan failed partway through")
+            yield json.dumps({"error": f"Scan stopped early: {e}"}) + "\n"
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")
 

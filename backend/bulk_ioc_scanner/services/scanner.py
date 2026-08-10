@@ -35,20 +35,39 @@ async def _run_provider(provider, client, items: list[tuple[str, str]]) -> list[
             async def _one(ioc, ioc_type):
                 async with limiter.for_provider(name):
                     return await provider.lookup(client, ioc, ioc_type)
-            results = await asyncio.gather(*(_one(ioc, t) for ioc, t in items))
+
+            # return_exceptions: one IOC blowing up must cost that IOC only.
+            # Without it, gather cancels the siblings and the whole provider's
+            # share of the batch is lost.
+            settled = await asyncio.gather(
+                *(_one(ioc, t) for ioc, t in items), return_exceptions=True
+            )
+            results = []
+            for (ioc, ioc_type), outcome in zip(items, settled):
+                if isinstance(outcome, BaseException):
+                    logger.exception(
+                        "Provider %s failed on %s", name, ioc, exc_info=outcome
+                    )
+                    results.append(_provider_error(name, ioc, ioc_type, str(outcome)))
+                else:
+                    results.append(outcome)
     except Exception as e:  # a provider should not raise, but never deadlock the caller
         logger.exception("Provider %s batch failed", name)
         return [_provider_error(name, ioc, t, str(e)) for ioc, t in items]
 
-    # Guard against a batch override returning a misaligned set of results.
-    if len(results) != len(items):
-        logger.error("Provider %s returned %d results for %d items", name, len(results), len(items))
-        by_ioc = {r.ioc: r for r in results}
-        results = [
-            by_ioc.get(ioc) or _provider_error(name, ioc, t, "missing batch result")
-            for ioc, t in items
-        ]
-    return results
+    # Realign against what we asked for. A batch override can return the wrong
+    # count *or* the right count of results for the wrong IOCs; either way the
+    # caller gets exactly one result per requested item, in order.
+    by_ioc = {r.ioc: r for r in results}
+    if len(results) != len(items) or not all(ioc in by_ioc for ioc, _ in items):
+        logger.error(
+            "Provider %s returned %d results that do not match the %d items requested",
+            name, len(results), len(items),
+        )
+    return [
+        by_ioc.get(ioc) or _provider_error(name, ioc, t, "missing batch result")
+        for ioc, t in items
+    ]
 
 
 def _provider_error(name, ioc, ioc_type, msg) -> ProviderResult:
@@ -64,7 +83,12 @@ def _assemble(ioc, ioc_type, provider_results, source_filename=None, file_size=N
         if ioc_type in _NON_ENRICHABLE:
             msg = f"Recognized as '{ioc_type}', but no provider enriches this type yet."
         else:
-            msg = f"No active provider supports type '{ioc_type}'. Enable one on the Settings page."
+            # The common first-run case: no API keys, so only the keyless RDAP
+            # provider is active and it does not handle hashes or URLs.
+            msg = (
+                f"No active provider handles {ioc_type} indicators. Add a free API key "
+                f"on the Settings page — VirusTotal covers hashes, IPs, domains, and URLs."
+            )
         return ScanResult(
             ioc=ioc, ioc_type=ioc_type, risk_score=0.0, risk_band="Low", status="error",
             provider_results=[_provider_error("system", ioc, ioc_type, msg)],
@@ -229,12 +253,30 @@ async def scan_bulk_stream(
             while remaining > 0:
                 pr = await queue.get()
                 remaining -= 1
+                if pr.ioc not in pending:
+                    # A provider answered about an IOC we did not ask for. Drop
+                    # it rather than raising KeyError, which would strand the
+                    # consumer on the next queue.get() and hang the stream.
+                    logger.error(
+                        "Provider %s returned an unexpected IOC %r; ignoring",
+                        pr.provider, pr.ioc,
+                    )
+                    continue
                 results_by_ioc[pr.ioc].append(pr)
                 pending[pr.ioc] -= 1
                 if pending[pr.ioc] == 0:
                     res = _assemble(pr.ioc, type_of[pr.ioc], results_by_ioc[pr.ioc])
                     res.id = await save_scan(db, res)
                     yield res
+
+            # Any IOC still pending lost a provider result along the way. Emit
+            # it with whatever came back so the caller gets one row per input.
+            for ioc, outstanding in pending.items():
+                if outstanding > 0:
+                    res = _assemble(ioc, type_of[ioc], results_by_ioc[ioc])
+                    res.id = await save_scan(db, res)
+                    yield res
+
             await producer
         finally:
             # If the client disconnected mid-stream, the generator is closed and
