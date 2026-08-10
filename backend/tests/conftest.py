@@ -2,7 +2,11 @@
 import os
 import tempfile
 
-# Point the app at a throwaway SQLite DB BEFORE any app module is imported.
+# Point the app at a throwaway data directory and SQLite DB BEFORE any app
+# module is imported, so tests never touch the real user data directory.
+_tmp_data_dir = tempfile.mkdtemp(prefix="bulk-ioc-scanner-tests-")
+os.environ["BULK_IOC_SCANNER_DATA_DIR"] = _tmp_data_dir
+
 _tmp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _tmp_db.close()
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_tmp_db.name}"

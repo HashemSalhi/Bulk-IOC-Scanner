@@ -1,9 +1,24 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from bulk_ioc_scanner.paths import db_path, env_file_path
+
+
+def _default_database_url() -> str:
+    """SQLite URL pointing at the per-user data directory.
+
+    Both POSIX (``/home/you/...``) and Windows (``C:\\Users\\...``) absolute
+    paths are valid after the three-slash prefix.
+    """
+    return f"sqlite+aiosqlite:///{db_path()}"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # A .env is entirely optional. The one in the data directory is for
+        # people who prefer a file over the Settings page; the one in the
+        # working directory is the developer convenience and wins.
+        env_file=(env_file_path(), ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
@@ -34,8 +49,8 @@ class Settings(BaseSettings):
     # CORS
     frontend_origin: str = "http://localhost:5173"
 
-    # Database
-    database_url: str = "sqlite+aiosqlite:///./bulk_ioc_scanner.db"
+    # Database — defaults to the OS user data directory, not the install folder
+    database_url: str = Field(default_factory=_default_database_url)
 
     @property
     def max_upload_bytes(self) -> int:
