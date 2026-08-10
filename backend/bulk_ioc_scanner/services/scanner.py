@@ -2,21 +2,18 @@
 import asyncio
 import logging
 
-import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bulk_ioc_scanner.config import settings
 from bulk_ioc_scanner.models.schemas import ProviderResult, ScanResult
 from bulk_ioc_scanner.models.tables import _utcnow
+from bulk_ioc_scanner.providers.http import make_client
 from bulk_ioc_scanner.providers.registry import get_providers
 from bulk_ioc_scanner.services.ioc_detect import detect, refang
 from bulk_ioc_scanner.services.ratelimit import limiter
 from bulk_ioc_scanner.services.risk import compute_risk
 
 logger = logging.getLogger(__name__)
-
-# Shared httpx client timeout
-_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 
 # Recognized IOC types that no current provider can enrich
 _NON_ENRICHABLE = {"email", "cve", "asn", "crypto", "unknown"}
@@ -163,7 +160,7 @@ async def scan_bulk(
     # Live pass for cache misses — dispatch unique IOCs once (provider-major).
     if to_scan:
         unique_typed = list({typed_iocs[i][0]: typed_iocs[i] for i in to_scan}.values())
-        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+        async with make_client() as client:
             by_ioc = await _gather_provider_results(client, providers, unique_typed)
         for i in to_scan:
             ioc, ioc_type = typed_iocs[i]
@@ -210,7 +207,7 @@ async def scan_bulk_stream(
     # How many provider results to expect per IOC; when it hits 0, the IOC is done.
     pending = {ioc: sum(1 for p in providers if p.supports(t)) for ioc, t in misses}
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+    async with make_client() as client:
         queue: asyncio.Queue = asyncio.Queue()
 
         async def run(provider):

@@ -46,6 +46,26 @@ class Settings(BaseSettings):
     urlscan_rate_per_min: int = 60
     ipify_rate_per_min: int = 60
 
+    # Outbound network — for corporate environments
+    #
+    # Proxy: leave blank to use the standard HTTP_PROXY / HTTPS_PROXY / NO_PROXY
+    # environment variables, which are honoured automatically. Set this to force
+    # a specific proxy regardless of the environment.
+    proxy_url: str = ""
+
+    # TLS: path to a CA bundle (.pem/.crt) for networks that inspect TLS with
+    # their own certificate authority. Blank falls back to REQUESTS_CA_BUNDLE,
+    # SSL_CERT_FILE, or CURL_CA_BUNDLE, then to the bundled trust store.
+    ca_bundle: str = ""
+
+    # Last resort for a broken TLS-inspecting proxy. Disables certificate
+    # verification for provider requests; prefer setting ca_bundle instead.
+    insecure_skip_verify: bool = False
+
+    # Request timeouts in seconds
+    request_timeout_seconds: float = 30.0
+    connect_timeout_seconds: float = 10.0
+
     # CORS — empty means same-origin only, which is the single-port default.
     # Set this to e.g. http://localhost:5173 when serving the UI separately.
     frontend_origin: str = ""
