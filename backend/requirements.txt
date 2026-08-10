@@ -1,3 +1,5 @@
+# Dependencies are declared in ../pyproject.toml; this file exists only for the
+# current Docker build, which installs from the backend/ context.
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 httpx==0.28.1

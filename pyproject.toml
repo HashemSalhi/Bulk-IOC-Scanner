@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bulk-ioc-scanner"
+version = "1.0.0"
+description = "Bulk IOC threat intelligence scanner for SOC analysts"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "HashemSalhi" }]
+keywords = ["ioc", "threat-intelligence", "soc", "virustotal", "security"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Security",
+]
+
+dependencies = [
+    "fastapi==0.115.0",
+    "uvicorn[standard]==0.32.0",
+    "httpx==0.28.1",
+    "sqlalchemy==2.0.36",
+    "pydantic-settings==2.6.1",
+    "python-multipart==0.0.20",
+    "aiosqlite==0.20.0",
+    "greenlet>=3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+
+[project.urls]
+Homepage = "https://github.com/HashemSalhi/Bulk-IOC-Scanner"
+Issues = "https://github.com/HashemSalhi/Bulk-IOC-Scanner/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/bulk_ioc_scanner"]
+
+# The React UI is built into backend/bulk_ioc_scanner/web/ before packaging and
+# ships inside the wheel, so installing the package is all an analyst needs.
+# It is gitignored, hence listed as an artifact rather than tracked source.
+artifacts = ["backend/bulk_ioc_scanner/web/**"]
+
+[tool.hatch.build.targets.sdist]
+include = ["backend", "frontend", "README.md", "LICENSE"]
+exclude = ["frontend/node_modules", "frontend/dist"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["backend/tests"]
