@@ -205,8 +205,17 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Only the artifacts that belong in the release. Downloading everything
+      # also picks up the build record the image job uploads, which this action
+      # cannot extract and which fails the job.
       - uses: actions/download-artifact@v4
         with:
+          name: distributions
+          path: artifacts/distributions
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: executable-*
           path: artifacts
 
       - name: Collect the files and checksum them
