@@ -155,10 +155,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Registry names must be lowercase, and the repository name is not.
+      - id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ steps.image.outputs.name }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -176,7 +180,9 @@ jobs:
 
   pypi:
     name: Publish to PyPI
-    needs: [distributions, executables]
+    # Also waits on the image: a version can never be re-uploaded to PyPI, so
+    # nothing is published until every artifact for the release has built.
+    needs: [distributions, executables, image]
     if: ${{ startsWith(github.ref, 'refs/tags/v') && !inputs.dry_run }}
     runs-on: ubuntu-latest
     environment: pypi
