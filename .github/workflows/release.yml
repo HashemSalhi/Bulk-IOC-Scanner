@@ -200,7 +200,10 @@ jobs:
   release:
     name: GitHub release
     needs: [distributions, executables, image]
-    if: ${{ startsWith(github.ref, 'refs/tags/v') && !inputs.dry_run }}
+    # A dry run gets this far too: everything except the upload is exercised,
+    # so a broken download or a missing artifact is caught before a tag exists.
+    # Only the final step is gated, because a tag cannot be taken back.
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -220,15 +223,30 @@ jobs:
 
       - name: Collect the files and checksum them
         run: |
+          set -euo pipefail
           mkdir -p release
           find artifacts -type f \( -name 'bulk-ioc-scanner-*' -o -name '*.whl' -o -name '*.tar.gz' \) \
             -exec cp {} release/ \;
           cd release
-          chmod +x bulk-ioc-scanner-linux-x64 || true
+
+          # Fail here rather than publishing a release that is missing a
+          # download someone is going to look for.
+          for expected in \
+            bulk-ioc-scanner-linux-x64 \
+            bulk-ioc-scanner-windows-x64.exe \
+            bulk_ioc_scanner-*-py3-none-any.whl \
+            bulk_ioc_scanner-*.tar.gz
+          do
+            compgen -G "$expected" > /dev/null || { echo "missing from the release: $expected"; exit 1; }
+          done
+
+          chmod +x bulk-ioc-scanner-linux-x64
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
+        shell: bash
 
       - uses: softprops/action-gh-release@v2
+        if: ${{ !inputs.dry_run }}
         with:
           files: release/*
           generate_release_notes: true
